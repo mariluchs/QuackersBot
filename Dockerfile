@@ -1,20 +1,18 @@
-# Use stable Node.js 20 runtime
-FROM cgr.dev/chainguard/node:20
+# Node.js 20 on Red Hat UBI (public registry, no Docker Hub)
+FROM registry.access.redhat.com/ubi9/nodejs-20
 
-# Set working directory inside container
 WORKDIR /app
 
-# Copy only package files first (for caching)
+# Copy package files first to leverage caching
 COPY package.json package-lock.json* ./
 
-# Install dependencies (production only, no dev dependencies)
+# Install production dependencies
 RUN npm install --omit=dev
 
-# Copy the rest of the code
+# Copy the rest of the app
 COPY . .
 
-# Environment
 ENV NODE_ENV=production
 
-# Start the bot
+# Start your bot
 CMD ["node", "src/index.js"]
