@@ -6,7 +6,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// ✅ Use DATA_DIR if provided (e.g., /data on Railway, /var/data on Render),
+//    otherwise fall back to the local ./data folder for dev.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
 export const MIN = 60 * 1000;
@@ -42,11 +44,11 @@ export function defaultGuildState() {
     petCooldownMs: 1 * HOUR,
     petStats: {},                  // { userId: { lastPetAt:number, count:number } }
 
-    // NEW: daily pet counter (UTC)
+    // Daily pet counter (UTC)
     petsToday: 0,
     petDayUTC: utcDateKey(),       // 'YYYY-MM-DD'
 
-    // reminders
+    // Reminders
     reminderRoleId: null,
     reminderChannelId: null,
     lastReminderAt: 0,
