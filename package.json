@@ -1,8 +1,9 @@
 {
   "name": "luckyducky",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Discord bot to take care of Quackers the duck",
   "main": "src/index.js",
+  "type": "module",
   "scripts": {
     "start": "node src/index.js"
   },
@@ -13,6 +14,6 @@
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
     "fs-extra": "^11.2.0",
-    "mongodb": "^6.20.0"
+    "mongodb": "^6.8.0"
   }
 }
