@@ -33,6 +33,7 @@ export async function execute(interaction, g, state) {
   const now = Date.now();
   const delta = now - g.lastFedAt;
 
+  // feeding status
   let fullness = 'full';
   if (delta >= g.cooldownMs && delta < 4 * HOUR) {
     fullness = 'hungry';
@@ -43,7 +44,10 @@ export async function execute(interaction, g, state) {
   const nextFeedMs = Math.max(0, g.lastFedAt + g.cooldownMs - now);
   const nextFeedText = nextFeedMs === 0 ? 'now.' : `in ${msToHuman(nextFeedMs)}.`;
 
-  const moodDuck = g.petsToday > 0 ? EMOJIS.mood.happy : EMOJIS.mood.sad;
+  // happiness logic: happy only if >= 10 pets today (secret threshold)
+  const happyToday = (g.petsToday ?? 0) >= 10;
+  const moodDuck = happyToday ? EMOJIS.mood.happy : EMOJIS.mood.sad;
+
   const { att, filename } = getQuackersImage();
 
   const embed = {
@@ -55,13 +59,11 @@ export async function execute(interaction, g, state) {
         value:
           `Currently **${fullness}** ${EMOJIS.duck}.\n` +
           `Last fed **${msToHuman(delta)}** ago.\n` +
-          `Next feed **${nextFeedText}`,
+          `Next feed **${nextFeedText}**`, // ✅ fixed bold closing
       },
       {
         name: `${EMOJIS.pet} Happiness`,
-        value:
-          `Quackers is feeling **${g.petsToday > 0 ? 'happy' : 'sad'}** today ${moodDuck}.\n` +
-          `Pets so far: **${g.petsToday ?? 0}**`,
+        value: `Quackers is feeling **${happyToday ? 'happy' : 'sad'}** today ${moodDuck}.`,
       },
       {
         name: '📊 Stats',

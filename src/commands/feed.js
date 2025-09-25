@@ -40,7 +40,6 @@ export async function execute(interaction, g, state) {
     fetchReply: true,
   });
 
-  // store message info so reminder loop can react with ⏰
-  g.lastFeedMessageId = msg.id;
-  g.lastFeedChannelId = msg.channelId;
+  // 🕒 React immediately to show reminder is armed
+  await msg.react('⏰').catch(() => null);
 }
