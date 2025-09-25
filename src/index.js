@@ -39,7 +39,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if ((!guildState || typeof guildState !== 'object') && interaction.commandName !== 'start') {
       return interaction.reply({
         content: '⚠️ Quackers hasn’t been set up in this server yet. Ask an admin to run `/start`.',
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -47,7 +47,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await saveAll(state);
   } catch (err) {
     console.error(`[${interaction.commandName}]`, err);
-    const reply = { content: '❌ Oops! Something went wrong.', ephemeral: true };
+    const reply = { content: '❌ Oops! Something went wrong.', flags: 64 }; // ✅ updated
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(reply).catch(() => {});
     } else {

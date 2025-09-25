@@ -22,14 +22,13 @@ export async function execute(interaction, g, state) {
   const now = Date.now();
   const petData = g.petStats[userId] || { lastPetAt: 0, count: 0 };
 
-  // cooldown check
   const since = now - (petData.lastPetAt || 0);
   if (since < g.petCooldownMs) {
     const waitMs = g.petCooldownMs - since;
     const minutes = Math.ceil(waitMs / 60000);
     return interaction.reply({
       content: `⏳ You already pet Quackers recently. Try again in ${minutes}m!`,
-      ephemeral: true,
+      flags: 64, // ✅ was ephemeral
     });
   }
 
@@ -39,8 +38,7 @@ export async function execute(interaction, g, state) {
   g.petStats[userId] = petData;
   g.petsToday = (g.petsToday || 0) + 1;
 
-  // success message
   return interaction.reply(
-    `${EMOJIS.pet} Quackers has been pet! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`
+    `${EMOJIS.pet} Quackers has been pet! Thanks ${interaction.user}! ${EMOJIS.mood.happy}`
   );
 }

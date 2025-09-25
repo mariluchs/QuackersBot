@@ -9,19 +9,19 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction, g, state) {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+    return interaction.reply({ content: '❌ Admins only.', flags: 64 }); // ✅ updated
   }
 
   if (g && g.feedCount !== undefined) {
     return interaction.reply({
       content: '⚠️ Quackers is already set up in this server!',
-      ephemeral: true,
+      flags: 64, // ✅ updated
     });
   }
 
   // Fresh setup
   const newState = defaultGuildState();
-  // ✅ Start hungry
+  // ✅ Start hungry so server must feed him
   newState.lastFedAt = Date.now() - (3 * 60 * 60 * 1000);
 
   state[interaction.guildId] = newState;

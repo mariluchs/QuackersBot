@@ -1,23 +1,20 @@
 // src/commands/resetfeed.js
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { PermissionFlagsBits } from 'discord.js';
 import { saveAll } from '../state.js';
 import { now } from '../utils/time.js';
 
-export const data = new SlashCommandBuilder()
-  .setName('resetfeed')
-  .setDescription('[TEST] Reset the server pet feed timer (admin only).')
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+export const data = {
+  name: 'resetfeed',
+  description: '[TEST ONLY] Reset the server pet feed timer.',
+  default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
+};
 
-export async function execute(interaction, g, state) {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-  }
-
-  g.lastFedAt = now() - g.cooldownMs; // make it feedable immediately
+export async function execute(interaction, { state, g }) {
+  g.lastFedAt = now() - g.cooldownMs; // make it look overdue
   await saveAll(state);
 
   return interaction.reply({
-    content: '🧪 Feed cooldown has been reset. You can use /feed again immediately.',
-    ephemeral: true,
+    content: `🧪 [TEST] Feed cooldown has been reset. You can use /feed again immediately.`,
+    flags: 64, // ✅ now ephemeral via flags
   });
 }

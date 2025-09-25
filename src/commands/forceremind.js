@@ -3,25 +3,25 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
   .setName('forceremind')
-  .setDescription('[TEST] Force-send the overdue reminder now (admin only).')
+  .setDescription('Force-send the overdue reminder now (admin only).')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-export async function execute(interaction, g, state) {
+export async function execute(interaction, g) {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+    return interaction.reply({ content: '❌ Admins only.', flags: 64 }); // ✅ updated
   }
 
   if (!g?.reminderRoleId || !g?.reminderChannelId) {
     return interaction.reply({
       content: '⚠️ No reminder role/channel set. Use /setreminder first.',
-      ephemeral: true,
+      flags: 64, // ✅ updated
     });
   }
 
-  g.lastReminderAt = 0; // let the reminder loop trigger immediately
+  g.lastReminderAt = 0; // so the loop will send immediately
 
-  return interaction.reply({
+  await interaction.reply({
     content: '⏱️ Reminder will be sent by the loop shortly.',
-    ephemeral: true,
+    flags: 64, // ✅ updated
   });
 }

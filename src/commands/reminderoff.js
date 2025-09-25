@@ -14,15 +14,12 @@ export async function execute(interaction, g, state) {
   }
 
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+    return interaction.reply({ content: '❌ Admins only.', flags: 64 }); // ✅ updated
   }
 
   g.reminderRoleId = null;
   g.reminderChannelId = null;
   g.lastReminderAt = 0;
 
-  return interaction.reply({
-    content: '🔕 Reminders disabled.',
-    ephemeral: true,
-  });
+  await interaction.reply('🔕 Reminders disabled.');
 }
