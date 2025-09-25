@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, REST, Routes, Events } from 'discord.js';
 import { allCommands, commandMap } from './commands/index.js';
-import { getGuildState, saveAll, defaultGuildState, loadAll } from './state.js';
+import { getGuildState, saveAll, loadAll } from './state.js';
 
 // --- ENV ---
 const token    = process.env.DISCORD_TOKEN;
@@ -17,7 +17,7 @@ if (!token || !clientId) {
 
 // --- CLIENT ---
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds], // ✅ Only what’s required
+  intents: [GatewayIntentBits.Guilds],
 });
 
 client.once(Events.ClientReady, () => {
@@ -33,13 +33,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     const { state, g } = await getGuildState(interaction.guildId);
-
     let guildState = g;
-    if (!guildState || typeof guildState !== 'object') {
-      guildState = defaultGuildState();
-      state[interaction.guildId] = guildState;
-      await saveAll(state);
-      console.log(`[state] Recreated missing state for guild ${interaction.guildId}`);
+
+    // ✅ Require /start before anything else
+    if ((!guildState || typeof guildState !== 'object') && interaction.commandName !== 'start') {
+      return interaction.reply({
+        content: '⚠️ Quackers hasn’t been set up in this server yet. Ask an admin to run `/start`.',
+        ephemeral: true,
+      });
     }
 
     await cmd.execute(interaction, guildState, state);

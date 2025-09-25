@@ -21,8 +21,7 @@ export async function execute(interaction, g, state) {
 
   // Fresh setup
   const newState = defaultGuildState();
-
-  // ✅ Start hungry (server must feed him immediately)
+  // ✅ Start hungry
   newState.lastFedAt = Date.now() - (3 * 60 * 60 * 1000);
 
   state[interaction.guildId] = newState;
