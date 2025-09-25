@@ -12,27 +12,35 @@ export async function execute(interaction, g, state) {
     g = defaultGuildState();
     state[interaction.guildId] = g;
   }
+
   g.feeders ??= {};
   ensureTodayCounters(g);
 
   const now = Date.now();
   const since = now - g.lastFedAt;
 
+  // cooldown check
   if (since < g.cooldownMs) {
     const waitMs = g.cooldownMs - since;
     const minutes = Math.ceil(waitMs / 60000);
     return interaction.reply({
       content: `⏳ Quackers isn’t hungry yet. Try again in ${minutes}m.`,
-      flags: 64,
+      ephemeral: true,
     });
   }
 
+  // update state
   g.lastFedAt = now;
   g.feedCount = (g.feedCount ?? 0) + 1;
   g.feeders[interaction.user.id] = (g.feeders[interaction.user.id] || 0) + 1;
 
-  // Keep the sentence exactly like your screenshot, but with your custom emojis:
-  return interaction.reply(
-    `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`
-  );
+  // send success message and capture it
+  const msg = await interaction.reply({
+    content: `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`,
+    fetchReply: true,
+  });
+
+  // store message info so reminder loop can react with ⏰
+  g.lastFeedMessageId = msg.id;
+  g.lastFeedChannelId = msg.channelId;
 }

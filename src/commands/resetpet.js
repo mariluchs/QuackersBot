@@ -1,14 +1,17 @@
-import { PermissionFlagsBits } from 'discord.js';
+// src/commands/resetpet.js
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { saveAll } from '../state.js';
 
-export const data = {
-  name: 'resetpet',
-  description: '[TEST] Reset pet cooldowns (admin only, keeps total counts).',
-  default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
-};
+export const data = new SlashCommandBuilder()
+  .setName('resetpet')
+  .setDescription('[TEST] Reset pet cooldowns (admin only, keeps total counts).')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-export async function execute(interaction, { state, g }) {
-  // Ensure object exists
+export async function execute(interaction, g, state) {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+  }
+
   g.petStats ??= {};
 
   // Reset only cooldowns, NOT the counts
@@ -18,14 +21,12 @@ export async function execute(interaction, { state, g }) {
     g.petStats[uid] = rec;
   }
 
-  // Optional: do NOT touch g.petsToday if you want daily mood to stay
-  // If you *also* want to reset today's counter, uncomment the next line:
-  // g.petsToday = 0;
+  // Note: daily counter (g.petsToday) is left untouched intentionally
 
   await saveAll(state);
 
   return interaction.reply({
     content: '🧪 Pet cooldowns have been reset. All-time pet counts were kept.',
-    ephemeral: true
+    ephemeral: true,
   });
 }

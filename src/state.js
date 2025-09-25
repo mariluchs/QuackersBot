@@ -71,7 +71,7 @@ export function utcDateKey(d = new Date()) {
 }
 
 export function ensureTodayCounters(g) {
-  if (!g || typeof g !== 'object') return; // defensive
+  if (!g || typeof g !== 'object') return;
   const today = utcDateKey();
 
   if (!('petDayUTC' in g)) g.petDayUTC = today;
@@ -83,7 +83,7 @@ export function ensureTodayCounters(g) {
   }
 }
 
-// ---- DB API (legacy compatible) ----
+// ---- DB API ----
 export async function loadAll() {
   const col = await connect();
   const docs = await col.find({}).toArray();

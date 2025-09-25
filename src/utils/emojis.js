@@ -1,5 +1,5 @@
 // src/utils/emojis.js
-// ▶️ Replace these IDs if any changed in your server
+// ▶️ Replace these IDs if they change in your server
 const IDs = {
   QuackersHappy: '1420500091629867169',
   QuackersSad:   '1420500108356882442',
@@ -7,7 +7,7 @@ const IDs = {
   QuackersPet:   '1420505252473340105', // pet emoji
 };
 
-// Unicode fallbacks if the custom emoji isn't available (prevents "undefined")
+// Unicode fallbacks if the custom emoji isn't available
 const F = {
   happy: '🙂',
   sad:   '😔',
@@ -23,5 +23,5 @@ export const EMOJIS = {
   },
   feed: IDs.QuackersSip ? `<:QuackersSip:${IDs.QuackersSip}>` : F.feed,
   pet:  IDs.QuackersPet ? `<:QuackersPet:${IDs.QuackersPet}>` : F.pet,
-  duck: F.duck, // for the little duck at the end of lines (as in your screenshot)
+  duck: F.duck, // simple duck symbol
 };

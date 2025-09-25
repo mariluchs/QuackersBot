@@ -8,13 +8,11 @@ export const data = new SlashCommandBuilder()
   .setDescription('Pet Quackers (per-user 1h cooldown).');
 
 export async function execute(interaction, g, state) {
-  // ensure guild state exists
   if (!g) {
     g = defaultGuildState();
     state[interaction.guildId] = g;
   }
 
-  // ensure required fields exist (older records may miss these)
   g.petStats ??= {};
   g.petCooldownMs ??= 1 * HOUR;
 
@@ -31,7 +29,7 @@ export async function execute(interaction, g, state) {
     const minutes = Math.ceil(waitMs / 60000);
     return interaction.reply({
       content: `⏳ You already pet Quackers recently. Try again in ${minutes}m!`,
-      flags: 64, // ephemeral
+      ephemeral: true,
     });
   }
 
@@ -41,8 +39,8 @@ export async function execute(interaction, g, state) {
   g.petStats[userId] = petData;
   g.petsToday = (g.petsToday || 0) + 1;
 
-  // message style you requested
+  // success message
   return interaction.reply(
-    `${EMOJIS.pet} Quackers has been pet! Thanks ${interaction.user}! ${EMOJIS.mood.happy}`
+    `${EMOJIS.pet} Quackers has been pet! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`
   );
 }

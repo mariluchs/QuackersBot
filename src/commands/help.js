@@ -13,7 +13,7 @@ export async function execute(interaction) {
       { name: '/check', value: 'Show Quackers’ feeding & happiness.' },
       { name: '/feed', value: 'Feed Quackers (server-wide cooldown).' },
       { name: '/pet', value: 'Pet Quackers (per-user cooldown).' },
-      { name: '/leaderboard', value: 'Top feeders & petters.' },
+      { name: '/leaderboard', value: 'Show the top feeders & petters.' },
       { name: '/setreminder', value: 'Ping a role when Quackers is overdue. *(Admin)*' },
       { name: '/reminderoff', value: 'Disable reminders. *(Admin)*' },
     ],

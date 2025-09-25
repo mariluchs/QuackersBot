@@ -1,26 +1,27 @@
-import { PermissionFlagsBits } from 'discord.js';
-import { EMOJIS } from '../utils/emojis.js';
+// src/commands/forceremind.js
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
-export const data = {
-  name: 'forceremind',
-  description: '[TEST] Force send a reminder now (admin only).',
-  default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
-};
+export const data = new SlashCommandBuilder()
+  .setName('forceremind')
+  .setDescription('[TEST] Force-send the overdue reminder now (admin only).')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-export async function execute(interaction, { g }) {
-  if (!g.reminderRoleId || !g.reminderChannelId) {
-    return interaction.reply({ content: '⚠️ No reminder role/channel set. Use `/setreminder` first.', ephemeral: true });
+export async function execute(interaction, g, state) {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
   }
 
-  try {
-    const channel = await interaction.guild.channels.fetch(g.reminderChannelId);
-    await channel.send({
-      content: `<@&${g.reminderRoleId}> Quackers needs to be fed! ${EMOJIS.misc.feed}`,
-      allowedMentions: { roles: [g.reminderRoleId] }
+  if (!g?.reminderRoleId || !g?.reminderChannelId) {
+    return interaction.reply({
+      content: '⚠️ No reminder role/channel set. Use /setreminder first.',
+      ephemeral: true,
     });
-    return interaction.reply({ content: '✅ Reminder sent!', ephemeral: true });
-  } catch (e) {
-    console.error('[forceremind]', e);
-    return interaction.reply({ content: '❌ Failed to send reminder. Check my channel permissions.', ephemeral: true });
   }
+
+  g.lastReminderAt = 0; // let the reminder loop trigger immediately
+
+  return interaction.reply({
+    content: '⏱️ Reminder will be sent by the loop shortly.',
+    ephemeral: true,
+  });
 }

@@ -1,16 +1,23 @@
-import { PermissionFlagsBits } from 'discord.js';
-import { saveAll } from '../state.js';
+// src/commands/forcehungry.js
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { saveAll, HOUR } from '../state.js';
 import { now } from '../utils/time.js';
-import { HOUR } from '../state.js';
 
-export const data = {
-  name: 'forcehungry',
-  description: '[TEST] Force Quackers into hungry state (admin only).',
-  default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
-};
+export const data = new SlashCommandBuilder()
+  .setName('forcehungry')
+  .setDescription('[TEST] Force Quackers into hungry state (admin only).')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-export async function execute(interaction, { state, g }) {
-  g.lastFedAt = now() - (3 * HOUR); // ~hungry
+export async function execute(interaction, g, state) {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+  }
+
+  g.lastFedAt = now() - (3 * HOUR); // make Quackers appear hungry
   await saveAll(state);
-  return interaction.reply({ content: '🧪 Quackers has been set to **hungry** state for testing.', ephemeral: true });
+
+  return interaction.reply({
+    content: '🧪 Quackers has been set to **hungry** state for testing.',
+    ephemeral: true,
+  });
 }
