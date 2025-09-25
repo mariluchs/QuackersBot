@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, REST, Routes, Events } from 'discord.js';
 import { allCommands, commandMap } from './commands/index.js';
-import { loadAll, saveAll } from './state.js';
+import { loadAll } from './state.js';
 
 // --- Load env variables ---
 const token = process.env.DISCORD_TOKEN;
@@ -23,15 +23,13 @@ async function registerCommands() {
     console.log('🔧 Registering slash commands...');
 
     // Always register global commands
-    await rest.put(Routes.applicationCommands(clientId), {
-      body: allCommands.map(c => c.data.toJSON()),
-    });
+    await rest.put(Routes.applicationCommands(clientId), { body: allCommands.map(c => c.data) });
     console.log('✅ Global slash commands registered.');
 
     // Register guild commands only if GUILD_ID is set and in dev mode
     if (guildId && nodeEnv === 'development') {
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-        body: allCommands.map(c => c.data.toJSON()),
+        body: allCommands.map(c => c.data),
       });
       console.log(`✅ Guild slash commands registered for ${guildId}`);
     }
@@ -53,16 +51,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (!cmd) return;
 
   try {
-    // Load state map and guild state
-    const state = await loadAll();
-    const { g } = state[interaction.guildId]
-      ? { g: state[interaction.guildId] }
-      : { g: null };
-
-    await cmd.execute(interaction, g, state);
-
-    // Save updated state back to DB
-    await saveAll(state);
+    await cmd.execute(interaction);
   } catch (error) {
     console.error(`[${interaction.commandName}]`, error);
     if (interaction.replied || interaction.deferred) {
@@ -82,5 +71,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // --- Start bot ---
 (async () => {
   await registerCommands();
+  await loadAll(); // preload state
   client.login(token);
 })();

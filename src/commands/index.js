@@ -11,8 +11,7 @@ import * as forcehungry from './forcehungry.js';
 import * as resetpet from './resetpet.js';
 import * as help from './help.js';
 
-// 1) The list of command modules (each has { data, execute })
-const modules = [
+export const allCommands = [
   check,
   feed,
   pet,
@@ -26,13 +25,4 @@ const modules = [
   forcehungry,
 ];
 
-// 2) JSON payloads used for registration
-export const commandsJSON = modules.map((m) =>
-  typeof m.data?.toJSON === 'function' ? m.data.toJSON() : m.data
-);
-
-// 3) Name -> module map used at runtime
-export const commandMap = new Map(modules.map((m) => [m.data.name, m]));
-
-// (optional) default export, in case any code imports the list directly
-export default modules;
+export const commandMap = new Map(allCommands.map(c => [c.data.name, c]));
