@@ -74,12 +74,22 @@ export function utcDateKey(d = new Date()) {
 }
 
 export function ensureTodayCounters(g) {
+  // Guard against undefined/missing state
+  if (!g || typeof g !== 'object') return;
+
   const today = utcDateKey();
+
+  // Initialize missing fields
+  if (!('petDayUTC' in g)) g.petDayUTC = today;
+  if (!('petsToday' in g)) g.petsToday = 0;
+
+  // Daily reset
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
   }
 }
+
 
 // ---- legacy-compatible API ----
 // loadAll() returns a map { [guildId]: state }
