@@ -1,30 +1,35 @@
-import { msToHuman, fullnessFromDelta, now } from '../utils/time.js';
-import { saveAll } from '../state.js';
+// src/commands/feed.js
+import { SlashCommandBuilder } from 'discord.js';
+import { defaultGuildState, ensureTodayCounters, HOUR } from '../state.js';
 import { EMOJIS } from '../utils/emojis.js';
 
-export const data = {
-  name: 'feed',
-  description: 'Feed Quackers (server-wide cooldown).'
-};
+export const data = new SlashCommandBuilder()
+  .setName('feed')
+  .setDescription('Feed Quackers (server-wide cooldown).');
 
-export async function execute(interaction, { state, g }) {
-  const nextAllowed = g.lastFedAt + g.cooldownMs;
-  const wait = nextAllowed - now();
-  if (wait > 0) {
+export async function execute(interaction, g, state) {
+  if (!g) {
+    g = defaultGuildState();
+    state[interaction.guildId] = g;
+  }
+  ensureTodayCounters(g);
+
+  const now = Date.now();
+  const diff = now - g.lastFedAt;
+
+  if (diff < g.cooldownMs) {
+    const wait = Math.ceil((g.cooldownMs - diff) / (60 * 1000));
     return interaction.reply({
-      content: `⏳ Quackers is still full! Try again in **${msToHuman(wait)}**.`,
-      ephemeral: true
+      content: `⏳ Quackers isn’t hungry yet. Try again in ${wait}m.`,
+      flags: 64,
     });
   }
 
-  g.lastFedAt = now();
-  g.feedCount += 1;
-  const uid = interaction.user.id;
-  g.feeders[uid] = (g.feeders[uid] || 0) + 1;
-  await saveAll(state);
+  g.lastFedAt = now;
+  g.feedCount++;
+  g.feeders[interaction.user.id] = (g.feeders[interaction.user.id] || 0) + 1;
 
-  const { emoji } = fullnessFromDelta(0);
   return interaction.reply(
-    `${EMOJIS.misc.feed} Quackers has been fed! Thanks, <@${uid}>! ${emoji}`
+    `${interaction.user} fed Quackers! ${EMOJIS.feed} ${EMOJIS.fullness.full}`
   );
 }

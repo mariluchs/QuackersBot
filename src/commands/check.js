@@ -1,58 +1,50 @@
-import path from 'path';
-import fs from 'fs';
-import { AttachmentBuilder } from 'discord.js';
-import { msToHuman, fullnessFromDelta, happinessFromPets, now } from '../utils/time.js';
-import { ensureTodayCounters } from '../state.js';
+// src/commands/check.js
+import { SlashCommandBuilder } from 'discord.js';
+import { ensureTodayCounters, defaultGuildState, HOUR } from '../state.js';
 import { EMOJIS } from '../utils/emojis.js';
+import { msToHuman } from '../utils/time.js';
 
-const ASSETS_DIR = path.resolve(process.cwd(), 'src', 'assets');
+export const data = new SlashCommandBuilder()
+  .setName('check')
+  .setDescription("Show Quackers' feeding & happiness.");
 
-function getImageForState(fullness) {
-  let filename = 'Quackers.png';
-  if (fullness === 'starving') filename = 'SadQuackers.png';
-  const filePath = path.join(ASSETS_DIR, filename);
-  return fs.existsSync(filePath) ? new AttachmentBuilder(filePath, { name: filename }) : null;
-}
-
-export const data = {
-  name: 'check',
-  description: 'Show Quackers’ feeding and happiness.'
-};
-
-export async function execute(interaction, { g }) {
+export async function execute(interaction, g, state) {
+  // Safety: ensure guild state
+  if (!g) {
+    g = defaultGuildState();
+    state[interaction.guildId] = g;
+  }
   ensureTodayCounters(g);
 
-  const delta = now() - g.lastFedAt;
-  const { fullness, emoji: fullnessEmoji } = fullnessFromDelta(delta);
-  const { happiness, emoji: happinessEmoji } = happinessFromPets(g.petsToday);
-  const nextIn = Math.max(0, g.lastFedAt + g.cooldownMs - now());
+  const delta = Date.now() - g.lastFedAt;
+  let fullness;
+  if (delta < g.cooldownMs) fullness = `${EMOJIS.fullness.full} Full`;
+  else if (delta < 3 * HOUR) fullness = `${EMOJIS.fullness.hungry} Hungry`;
+  else fullness = `${EMOJIS.fullness.starving} Starving`;
+
+  const happiness = g.petsToday > 0
+    ? `${EMOJIS.happiness.happy} Happy`
+    : `${EMOJIS.happiness.sad} Sad`;
 
   const embed = {
-    color: 0x00b2ff,
-    title: `Quackers' Status`,
+    color: 0xfbc02d,
+    title: `${EMOJIS.fullness.full} Quackers' Status`,
     fields: [
       {
-        name: `${EMOJIS.misc.feed} Feeding`,
-        value: `Currently **${fullness}** ${fullnessEmoji}.\nLast fed **${msToHuman(delta)}** ago.\nNext feed in **${msToHuman(nextIn)}**.`
+        name: '🍽 Feeding',
+        value: `Currently **${fullness}**.\nLast fed ${msToHuman(delta)} ago.`,
       },
       {
-        name: `${EMOJIS.misc.pet} Happiness`,
-        value: `Quackers is feeling **${happiness}** today ${happinessEmoji}.\nPets so far: **${g.petsToday}**`
+        name: '💛 Happiness',
+        value: `Quackers is feeling **${happiness}** today.`,
       },
       {
         name: '📊 Stats',
-        value: `Total feeds: **${g.feedCount}**`
-      }
+        value: `Total feeds: **${g.feedCount}**`,
+      },
     ],
-    footer: { text: 'Remember: Quackers needs care every day 🦆' }
+    footer: { text: 'Remember: Quackers needs care every day 🦆' },
   };
 
-  const file = getImageForState(fullness);
-  const payload = { embeds: [embed] };
-  if (file) {
-    embed.image = { url: `attachment://${file.name}` };
-    payload.files = [file];
-  }
-
-  return interaction.reply(payload);
+  await interaction.reply({ embeds: [embed] });
 }

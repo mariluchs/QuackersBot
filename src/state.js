@@ -31,31 +31,28 @@ async function connect() {
   _db = _client.db(dbName);
   _col = _db.collection(colName);
 
-  // Ensure we can look up by guildId quickly
   await _col.createIndex({ guildId: 1 }, { unique: true });
-
   return _col;
 }
 
 // ---- default per-guild state ----
 export function defaultGuildState() {
   return {
-    // Quackers is the fixed name
     petName: 'Quackers',
 
     // feeding
     lastFedAt: Date.now() - 3 * HOUR,
-    cooldownMs: 2 * HOUR,          // server-wide FEED cooldown
+    cooldownMs: 2 * HOUR,
     feedCount: 0,
-    feeders: {},                   // { userId: count }
+    feeders: {},
 
-    // /pet per-user cooldown & counters
+    // petting
     petCooldownMs: 1 * HOUR,
-    petStats: {},                  // { userId: { lastPetAt:number, count:number } }
+    petStats: {},
 
-    // daily pet counter (UTC)
+    // daily counter
     petsToday: 0,
-    petDayUTC: utcDateKey(),       // 'YYYY-MM-DD'
+    petDayUTC: utcDateKey(),
 
     // reminders
     reminderRoleId: null,
@@ -74,28 +71,15 @@ export function utcDateKey(d = new Date()) {
 }
 
 export function ensureTodayCounters(g) {
-  // Guard against undefined/missing state
-  if (!g || typeof g !== 'object') return;
-
+  if (!g) return; // safety
   const today = utcDateKey();
-
-  // Initialize missing fields
-  if (!('petDayUTC' in g)) g.petDayUTC = today;
-  if (!('petsToday' in g)) g.petsToday = 0;
-
-  // Daily reset
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
   }
 }
 
-
-// ---- legacy-compatible API ----
-// loadAll() returns a map { [guildId]: state }
-// saveAll(map) upserts every guild in the map
-// getGuildState(guildId) returns { state: map, g: map[guildId] }
-
+// ---- DB functions ----
 export async function loadAll() {
   const col = await connect();
   const docs = await col.find({}).toArray();
@@ -121,12 +105,11 @@ export async function saveAll(stateMap) {
   if (ops.length) await col.bulkWrite(ops, { ordered: false });
 }
 
-// Helper: ensure any missing fields are added (forward-compat)
+// ---- safety: fill in missing fields ----
 function sanitizeGuildState(g) {
   const base = defaultGuildState();
   const merged = { ...base, ...(g || {}) };
 
-  // forward-compat for newly added fields
   merged.petStats ??= {};
   merged.feeders ??= {};
   merged.reminderEveryMs ??= 30 * MIN;
@@ -138,8 +121,6 @@ function sanitizeGuildState(g) {
 
 export async function getGuildState(guildId) {
   const col = await connect();
-
-  // Try to get existing
   let doc = await col.findOne({ guildId });
 
   if (!doc) {
@@ -148,15 +129,11 @@ export async function getGuildState(guildId) {
     doc = { guildId, data };
   }
 
-  // Sanitize/upgrade in case new fields were added in code
   const upgraded = sanitizeGuildState(doc.data);
-
-  // If upgrades happened, write back
   if (JSON.stringify(upgraded) !== JSON.stringify(doc.data)) {
     await col.updateOne({ guildId }, { $set: { data: upgraded } });
   }
 
-  // Return in the same shape your code expects
   const map = { [guildId]: upgraded };
   return { state: map, g: map[guildId] };
 }

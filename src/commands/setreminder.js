@@ -1,29 +1,26 @@
-import { PermissionFlagsBits } from 'discord.js';
-import { saveAll } from '../state.js';
-import { EMOJIS } from '../utils/emojis.js';
+// src/commands/setreminder.js
+import { SlashCommandBuilder } from 'discord.js';
+import { defaultGuildState } from '../state.js';
 
-export const data = {
-  name: 'setreminder',
-  description: 'Set up role pings when the pet is overdue (admin only).',
-  default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
-  options: [
-    {
-      type: 8, // ROLE
-      name: 'role',
-      description: 'Role to ping when Quackers needs food',
-      required: true
-    }
-  ]
-};
+export const data = new SlashCommandBuilder()
+  .setName('setreminder')
+  .setDescription('Ping a role when Quackers is overdue.')
+  .addRoleOption(opt =>
+    opt.setName('role').setDescription('Role to ping').setRequired(true)
+  );
 
-export async function execute(interaction, { state, g }) {
-  const role = interaction.options.getRole('role', true);
+export async function execute(interaction, g, state) {
+  if (!g) {
+    g = defaultGuildState();
+    state[interaction.guildId] = g;
+  }
+
+  const role = interaction.options.getRole('role');
   g.reminderRoleId = role.id;
   g.reminderChannelId = interaction.channelId;
-  await saveAll(state);
 
-  return interaction.reply({
-    content: `🔔 Reminders enabled. I will ping <@&${role.id}> in this channel when **Quackers** is overdue ${EMOJIS.misc.feed}`,
-    allowedMentions: { roles: [role.id] }
+  await interaction.reply({
+    content: `🔔 Reminders enabled. I will ping ${role} when Quackers needs food.`,
+    allowedMentions: { roles: [role.id] },
   });
 }

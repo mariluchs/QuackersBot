@@ -1,25 +1,51 @@
 // src/index.js
 import 'dotenv/config';
 import { Client, GatewayIntentBits, REST, Routes, Events } from 'discord.js';
-import { commandsJSON, commandMap } from './commands/index.js';
-import { loadAll, getGuildState, saveAll } from './state.js';
+import { allCommands, commandMap } from './commands/index.js';
+import { loadAll, saveAll } from './state.js';
 
-const token    = process.env.DISCORD_TOKEN;
+// --- Load env variables ---
+const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.APP_ID;
-const guildId  = process.env.GUILD_ID; // optional
-const nodeEnv  = process.env.NODE_ENV || 'development';
+const guildId = process.env.GUILD_ID; // optional
+const nodeEnv = process.env.NODE_ENV || 'development';
 
-if (!token || !clientId) {
-  console.error('❌ Missing DISCORD_TOKEN or APP_ID environment variables.');
-  process.exit(1);
+// --- Create client ---
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+});
+
+// --- Register slash commands ---
+async function registerCommands() {
+  const rest = new REST({ version: '10' }).setToken(token);
+
+  try {
+    console.log('🔧 Registering slash commands...');
+
+    // Always register global commands
+    await rest.put(Routes.applicationCommands(clientId), {
+      body: allCommands.map(c => c.data.toJSON()),
+    });
+    console.log('✅ Global slash commands registered.');
+
+    // Register guild commands only if GUILD_ID is set and in dev mode
+    if (guildId && nodeEnv === 'development') {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body: allCommands.map(c => c.data.toJSON()),
+      });
+      console.log(`✅ Guild slash commands registered for ${guildId}`);
+    }
+  } catch (error) {
+    console.error('❌ Failed to register commands:', error);
+  }
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
+// --- On ready ---
 client.once(Events.ClientReady, () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 });
 
+// --- Handle interactions ---
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -27,50 +53,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (!cmd) return;
 
   try {
-    // Load or create guild state and pass it to the command
-    const { state, g } = await getGuildState(interaction.guildId);
+    // Load state map and guild state
+    const state = await loadAll();
+    const { g } = state[interaction.guildId]
+      ? { g: state[interaction.guildId] }
+      : { g: null };
 
     await cmd.execute(interaction, g, state);
 
-    // Persist any changes the command made
+    // Save updated state back to DB
     await saveAll(state);
-  } catch (err) {
-    console.error(`[${interaction.commandName}]`, err);
-    const reply = { content: '❌ Oops! Something went wrong.', flags: 64 }; // ephemeral
+  } catch (error) {
+    console.error(`[${interaction.commandName}]`, error);
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply).catch(() => {});
+      await interaction.followUp({
+        content: '❌ Oops! Something went wrong.',
+        flags: 64, // ephemeral
+      });
     } else {
-      await interaction.reply(reply).catch(() => {});
+      await interaction.reply({
+        content: '❌ Oops! Something went wrong.',
+        flags: 64,
+      });
     }
   }
 });
 
-async function registerCommands() {
-  const rest = new REST({ version: '10' }).setToken(token);
-  try {
-    console.log(`🔧 Registering slash commands (env=${nodeEnv}, guildId=${guildId ? 'set' : 'not set'})…`);
-    // Global commands
-    await rest.put(Routes.applicationCommands(clientId), { body: commandsJSON });
-    console.log('✅ Global slash commands registered.');
-
-    // Optional: dev-only guild registration
-    if (guildId && nodeEnv === 'development') {
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commandsJSON });
-      console.log(`✅ Guild slash commands registered for ${guildId}.`);
-    }
-  } catch (err) {
-    console.error('❌ Failed to register commands:', err);
-  }
-}
-
+// --- Start bot ---
 (async () => {
-  try {
-    await loadAll().catch(() => {}); // safe no-op preload for Mongo version
-    console.log('⏳ Logging in…');
-    await client.login(token);       // login first so we see presence immediately
-    registerCommands();              // don’t block startup on registration
-  } catch (err) {
-    console.error('❌ Startup error:', err);
-    process.exit(1);
-  }
+  await registerCommands();
+  client.login(token);
 })();

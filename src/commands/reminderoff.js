@@ -1,15 +1,19 @@
-import { PermissionFlagsBits } from 'discord.js';
-import { saveAll } from '../state.js';
+// src/commands/reminderoff.js
+import { SlashCommandBuilder } from 'discord.js';
+import { defaultGuildState } from '../state.js';
 
-export const data = {
-  name: 'reminderoff',
-  description: 'Disable overdue feed reminders (admin only).',
-  default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
-};
+export const data = new SlashCommandBuilder()
+  .setName('reminderoff')
+  .setDescription('Disable the overdue reminders.');
 
-export async function execute(interaction, { state, g }) {
+export async function execute(interaction, g, state) {
+  if (!g) {
+    g = defaultGuildState();
+    state[interaction.guildId] = g;
+  }
+
   g.reminderRoleId = null;
   g.reminderChannelId = null;
-  await saveAll(state);
-  return interaction.reply({ content: '🔕 Reminders disabled for this server.' });
+
+  await interaction.reply('🔕 Reminders disabled.');
 }
