@@ -1,142 +1,137 @@
-// src/state.js
-import { MongoClient } from 'mongodb';
+// src/index.js
+import 'dotenv/config';
+import { Client, GatewayIntentBits, REST, Routes, Events } from 'discord.js';
+import { allCommands, commandMap } from './commands/index.js';
+import { getGuildState, saveAll, defaultGuildState, loadAll } from './state.js';
 
-export const MIN = 60 * 1000;
-export const HOUR = 60 * MIN;
+// --- ENV ---
+const token    = process.env.DISCORD_TOKEN;
+const clientId = process.env.APP_ID;
+const guildId  = process.env.GUILD_ID || null;     // optional (dev)
+const nodeEnv  = process.env.NODE_ENV || 'production';
 
-// ---- Mongo connection (singleton) ----
-let _client;
-let _db;
-let _col;
-
-/**
- * Connect to Mongo once and reuse the collection.
- * Env:
- *  - MONGO_URI (required)
- *  - MONGO_DB  (default: "quackers")
- *  - MONGO_COL (default: "guild_state")
- */
-async function connect() {
-  if (_col) return _col;
-
-  const uri = process.env.MONGO_URI;
-  if (!uri) throw new Error('[state] MONGO_URI not set');
-
-  const dbName = process.env.MONGO_DB || 'quackers';
-  const colName = process.env.MONGO_COL || 'guild_state';
-
-  _client = new MongoClient(uri, { maxPoolSize: 5 });
-  await _client.connect();
-
-  _db = _client.db(dbName);
-  _col = _db.collection(colName);
-
-  await _col.createIndex({ guildId: 1 }, { unique: true });
-  return _col;
+if (!token || !clientId) {
+  console.error('❌ Missing DISCORD_TOKEN or APP_ID environment variables.');
+  process.exit(1);
 }
 
-// ---- default per-guild state ----
-export function defaultGuildState() {
-  return {
-    petName: 'Quackers',
+// --- CLIENT ---
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds], // ✅ Only what’s required
+});
 
-    // feeding
-    lastFedAt: Date.now() - 3 * HOUR,
-    cooldownMs: 2 * HOUR,
-    feedCount: 0,
-    feeders: {},
+client.once(Events.ClientReady, () => {
+  console.log(`🤖 Logged in as ${client.user.tag}`);
+});
 
-    // petting
-    petCooldownMs: 1 * HOUR,
-    petStats: {},
+// --- INTERACTIONS ---
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
 
-    // daily counter
-    petsToday: 0,
-    petDayUTC: utcDateKey(),
+  const cmd = commandMap.get(interaction.commandName);
+  if (!cmd) return;
 
-    // reminders
-    reminderRoleId: null,
-    reminderChannelId: null,
-    lastReminderAt: 0,
-    reminderEveryMs: 30 * MIN,
-  };
-}
+  try {
+    const { state, g } = await getGuildState(interaction.guildId);
 
-// --- helpers for daily reset (UTC) ---
-export function utcDateKey(d = new Date()) {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+    let guildState = g;
+    if (!guildState || typeof guildState !== 'object') {
+      guildState = defaultGuildState();
+      state[interaction.guildId] = guildState;
+      await saveAll(state);
+      console.log(`[state] Recreated missing state for guild ${interaction.guildId}`);
+    }
 
-export function ensureTodayCounters(g) {
-  if (!g || typeof g !== 'object') return;
-  const today = utcDateKey();
+    await cmd.execute(interaction, guildState, state);
+    await saveAll(state);
+  } catch (err) {
+    console.error(`[${interaction.commandName}]`, err);
+    const reply = { content: '❌ Oops! Something went wrong.', ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply).catch(() => {});
+    } else {
+      await interaction.reply(reply).catch(() => {});
+    }
+  }
+});
 
-  if (!('petDayUTC' in g)) g.petDayUTC = today;
-  if (!('petsToday' in g)) g.petsToday = 0;
+// --- SLASH COMMAND REGISTRATION ---
+async function registerCommands() {
+  const rest = new REST({ version: '10' }).setToken(token);
+  const body = allCommands.map(c =>
+    (typeof c.data?.toJSON === 'function' ? c.data.toJSON() : c.data)
+  );
 
-  if (g.petDayUTC !== today) {
-    g.petDayUTC = today;
-    g.petsToday = 0;
+  try {
+    console.log('🔧 Registering slash commands...');
+    await rest.put(Routes.applicationCommands(clientId), { body });
+    console.log('✅ Global slash commands registered.');
+
+    if (guildId && nodeEnv === 'development') {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
+      console.log(`✅ Guild slash commands registered for ${guildId}`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to register commands:', err);
   }
 }
 
-// ---- DB API ----
-export async function loadAll() {
-  const col = await connect();
-  const docs = await col.find({}).toArray();
-  const map = {};
-  for (const doc of docs) {
-    map[doc.guildId] = sanitizeGuildState(doc.data);
-  }
-  return map;
-}
+// --- REMINDER LOOP ---
+async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
+  async function tick() {
+    try {
+      const state = await loadAll();
+      const now = Date.now();
 
-export async function saveAll(stateMap) {
-  const col = await connect();
-  const ops = [];
-  for (const [guildId, data] of Object.entries(stateMap || {})) {
-    ops.push({
-      updateOne: {
-        filter: { guildId },
-        update: { $set: { guildId, data: sanitizeGuildState(data) } },
-        upsert: true,
-      },
-    });
-  }
-  if (ops.length) await col.bulkWrite(ops, { ordered: false });
-}
+      for (const [guildId, g] of Object.entries(state)) {
+        if (!g?.reminderRoleId || !g?.reminderChannelId) continue;
 
-function sanitizeGuildState(g) {
-  const base = defaultGuildState();
-  const merged = { ...base, ...(g || {}) };
+        g.lastReminderAt   ??= 0;
+        g.reminderEveryMs  ??= 30 * 60 * 1000; // 30 min default
+        g.cooldownMs       ??= 2 * 60 * 60 * 1000; // 2h default
+        g.lastFedAt        ??= now - 3 * 60 * 60 * 1000;
 
-  merged.petStats ??= {};
-  merged.feeders ??= {};
-  merged.reminderEveryMs ??= 30 * MIN;
-  merged.petDayUTC ??= utcDateKey();
-  merged.petsToday ??= 0;
+        const overdue   = (now - g.lastFedAt) > g.cooldownMs;
+        const canRemind = (now - g.lastReminderAt) > g.reminderEveryMs;
 
-  return merged;
-}
+        if (!overdue || !canRemind) continue;
 
-export async function getGuildState(guildId) {
-  const col = await connect();
-  let doc = await col.findOne({ guildId });
+        const guild = client.guilds.cache.get(guildId)
+          || await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) continue;
 
-  if (!doc) {
-    const data = defaultGuildState();
-    await col.insertOne({ guildId, data });
-    doc = { guildId, data };
+        const channel = guild.channels.cache.get(g.reminderChannelId)
+          || await guild.channels.fetch(g.reminderChannelId).catch(() => null);
+        if (!channel?.isTextBased()) continue;
+
+        await channel.send({
+          content: `<@&${g.reminderRoleId}> Quackers needs food!`,
+          allowedMentions: { roles: [g.reminderRoleId] },
+        }).catch(() => null);
+
+        g.lastReminderAt = now;
+      }
+
+      await saveAll(state);
+    } catch (e) {
+      console.error('[reminder loop]', e);
+    }
   }
 
-  const upgraded = sanitizeGuildState(doc.data);
-  if (JSON.stringify(upgraded) !== JSON.stringify(doc.data)) {
-    await col.updateOne({ guildId }, { $set: { data: upgraded } });
-  }
-
-  const map = { [guildId]: upgraded };
-  return { state: map, g: map[guildId] };
+  setInterval(tick, intervalMs);
+  setTimeout(tick, 5_000);
 }
+
+// --- STARTUP ---
+(async () => {
+  try {
+    await loadAll().catch(() => {});
+    console.log('⏳ Logging in…');
+    await client.login(token);
+    registerCommands();
+    startReminderLoop(client);
+  } catch (err) {
+    console.error('❌ Startup error:', err);
+    process.exit(1);
+  }
+})();
