@@ -1,6 +1,4 @@
 // src/commands/index.js
-
-// --- Core commands ---
 import * as check from './check.js';
 import * as feed from './feed.js';
 import * as pet from './pet.js';
@@ -8,15 +6,15 @@ import * as leaderboard from './leaderboard.js';
 import * as setreminder from './setreminder.js';
 import * as reminderoff from './reminderoff.js';
 import * as help from './help.js';
+import * as start from './start.js';   // ✅ added
 
-// --- Test/Admin commands ---
+// test commands (kept separate if you want NODE_ENV split)
 import * as resetfeed from './resetfeed.js';
 import * as resetpet from './resetpet.js';
 import * as forceremind from './forceremind.js';
 import * as forcehungry from './forcehungry.js';
 
 export const allCommands = [
-  // Core
   check,
   feed,
   pet,
@@ -24,14 +22,11 @@ export const allCommands = [
   setreminder,
   reminderoff,
   help,
-
-  // Test/Admin
+  start,         // ✅ included
   resetfeed,
   resetpet,
   forceremind,
   forcehungry,
 ];
 
-export const commandMap = new Map(
-  allCommands.map(c => [c.data.name, c])
-);
+export const commandMap = new Map(allCommands.map(c => [c.data.name, c]));
