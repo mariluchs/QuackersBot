@@ -11,7 +11,7 @@ let _col;
 
 /**
  * Connect to Mongo once and reuse the collection.
- * Uses env:
+ * Env:
  *  - MONGO_URI (required)
  *  - MONGO_DB  (default: "quackers")
  *  - MONGO_COL (default: "guild_state")
@@ -71,15 +71,19 @@ export function utcDateKey(d = new Date()) {
 }
 
 export function ensureTodayCounters(g) {
-  if (!g) return; // safety
+  if (!g || typeof g !== 'object') return; // defensive
   const today = utcDateKey();
+
+  if (!('petDayUTC' in g)) g.petDayUTC = today;
+  if (!('petsToday' in g)) g.petsToday = 0;
+
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
   }
 }
 
-// ---- DB functions ----
+// ---- DB API (legacy compatible) ----
 export async function loadAll() {
   const col = await connect();
   const docs = await col.find({}).toArray();
@@ -105,7 +109,6 @@ export async function saveAll(stateMap) {
   if (ops.length) await col.bulkWrite(ops, { ordered: false });
 }
 
-// ---- safety: fill in missing fields ----
 function sanitizeGuildState(g) {
   const base = defaultGuildState();
   const merged = { ...base, ...(g || {}) };

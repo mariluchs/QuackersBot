@@ -9,34 +9,35 @@ export const data = new SlashCommandBuilder()
   .setDescription("Show Quackers' feeding & happiness.");
 
 export async function execute(interaction, g, state) {
-  // Safety: ensure guild state
+  // Safety: ensure guild state & maps
   if (!g) {
     g = defaultGuildState();
     state[interaction.guildId] = g;
   }
+  g.feeders ??= {};
+  g.petStats ??= {};
   ensureTodayCounters(g);
 
   const delta = Date.now() - g.lastFedAt;
-  let fullness;
-  if (delta < g.cooldownMs) fullness = `${EMOJIS.fullness.full} Full`;
-  else if (delta < 3 * HOUR) fullness = `${EMOJIS.fullness.hungry} Hungry`;
-  else fullness = `${EMOJIS.fullness.starving} Starving`;
 
-  const happiness = g.petsToday > 0
-    ? `${EMOJIS.happiness.happy} Happy`
-    : `${EMOJIS.happiness.sad} Sad`;
+  let fullnessText;
+  if (delta < g.cooldownMs) fullnessText = 'full';
+  else if (delta < 3 * HOUR) fullnessText = 'hungry';
+  else fullnessText = 'starving';
+
+  const happinessText = (g.petsToday > 0) ? 'happy' : 'sad';
 
   const embed = {
     color: 0xfbc02d,
-    title: `${EMOJIS.fullness.full} Quackers' Status`,
+    title: `🦆 Quackers' Status`,
     fields: [
       {
         name: '🍽 Feeding',
-        value: `Currently **${fullness}**.\nLast fed ${msToHuman(delta)} ago.`,
+        value: `Currently **${fullnessText}**.\nLast fed **${msToHuman(delta)}** ago.`,
       },
       {
         name: '💛 Happiness',
-        value: `Quackers is feeling **${happiness}** today.`,
+        value: `Quackers is feeling **${happinessText}** today.`,
       },
       {
         name: '📊 Stats',
