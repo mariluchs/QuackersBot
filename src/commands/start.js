@@ -32,13 +32,17 @@ export async function execute(interaction, g, state) {
     return interaction.reply({ content: '❌ Admins only.', flags: 64 });
   }
 
-  if (g && g.feedCount !== undefined) {
+  // If state exists but looks corrupted → reinit
+  const alreadyValid = g && typeof g.feedCount === 'number';
+
+  if (alreadyValid) {
     return interaction.reply({
       content: '⚠️ Quackers is already set up in this server!',
       flags: 64,
     });
   }
 
+  // Fresh setup
   const newState = defaultGuildState();
   newState.feedCount = 0;
   newState.petsToday = 0;
@@ -59,7 +63,6 @@ export async function execute(interaction, g, state) {
     components: [row],
   });
 
-  // ✅ fetch the reply (needed for collectors to work reliably)
   const sentMsg = await interaction.fetchReply();
 
   const collector = sentMsg.createMessageComponentCollector({
