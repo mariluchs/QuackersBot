@@ -38,11 +38,16 @@ export async function execute(interaction, g, state) {
   const now = Date.now();
   const delta = g.lastFedAt === 0 ? null : now - g.lastFedAt;
 
+  // --- Fullness logic ---
   let fullness = 'full';
   if (g.lastFedAt === 0) fullness = 'starving';
   else if (delta >= g.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
   else if (delta >= 4 * HOUR) fullness = 'starving';
 
+  // ✅ use QuackersHappy/QuackersSad instead of chick emoji
+  const fullnessEmoji = fullness === 'full' ? EMOJIS.mood.happy : EMOJIS.mood.sad;
+
+  // --- Next feed text ---
   const nextFeedMs =
     g.lastFedAt === 0 ? 0 : Math.max(0, g.lastFedAt + g.cooldownMs - now);
   const nextFeedText =
@@ -52,6 +57,7 @@ export async function execute(interaction, g, state) {
       ? 'now.'
       : `in ${msToHuman(nextFeedMs)}.`;
 
+  // --- Happiness logic ---
   const isHappy = g.petsToday >= g.dailyPetGoal;
   const moodDuck = isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad;
 
@@ -63,13 +69,13 @@ export async function execute(interaction, g, state) {
     color: 0x2b6cb0,
     title: `Quackers' Status`,
     description: firstTime
-      ? `🦆 Quackers has just appeared in this server!\nHe is **starving** ${EMOJIS.duck} — better feed him soon ${EMOJIS.feed}`
+      ? `🦆 Quackers has just appeared in this server!\nHe is **starving** ${EMOJIS.mood.sad} — better feed him soon ${EMOJIS.feed}`
       : undefined,
     fields: [
       {
         name: `${EMOJIS.feed} Feeding`,
         value:
-          `Currently **${fullness}** ${EMOJIS.duck}.\n` +
+          `Currently **${fullness}** ${fullnessEmoji}.\n` +
           `Last fed **${delta === null ? 'never' : msToHuman(delta)}** ago.\n` +
           `Next feed **${nextFeedText}**`,
       },
