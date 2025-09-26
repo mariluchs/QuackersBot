@@ -47,6 +47,7 @@ export function defaultGuildState() {
     // daily counter
     petsToday: 0,
     petDayUTC: utcDateKey(),
+    dailyPetGoal: Math.floor(Math.random() * 16) + 5, // 5–20, randomized each day
 
     // reminders
     reminderRoleId: null,
@@ -70,10 +71,12 @@ export function ensureTodayCounters(g) {
 
   if (!('petDayUTC' in g)) g.petDayUTC = today;
   if (!('petsToday' in g)) g.petsToday = 0;
+  if (!('dailyPetGoal' in g)) g.dailyPetGoal = Math.floor(Math.random() * 16) + 5;
 
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
+    g.dailyPetGoal = Math.floor(Math.random() * 16) + 5; // new secret goal each day
   }
 }
 
@@ -112,6 +115,7 @@ function sanitizeGuildState(g) {
   merged.reminderEveryMs ??= 30 * MIN;
   merged.petDayUTC ??= utcDateKey();
   merged.petsToday ??= 0;
+  merged.dailyPetGoal ??= Math.floor(Math.random() * 16) + 5;
 
   return merged;
 }

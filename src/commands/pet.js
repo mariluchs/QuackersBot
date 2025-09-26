@@ -10,11 +10,10 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, g, state) {
   const guildId = interaction.guildId;
 
-  // ✅ Block if not started
   const exists = await hasGuildState(guildId);
   if (!exists) {
     return interaction.reply({
-      content: '⚠️ Quackers has not been started yet in this server. An admin must run `/start` first!',
+      content: '⚠️ Quackers has not been set up yet in this server.',
       flags: 64,
     });
   }
@@ -42,9 +41,11 @@ export async function execute(interaction, g, state) {
   g.petStats[userId] = petData;
   g.petsToday = (g.petsToday || 0) + 1;
 
-  const isHappy = g.petsToday >= (g.dailyPetGoal ?? 10);
+  const isHappy = g.petsToday >= g.dailyPetGoal;
 
   return interaction.reply(
-    `${EMOJIS.pet} Quackers has been pet! Thanks ${interaction.user}! ${isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad}`
+    `${EMOJIS.pet} Quackers has been pet! Thanks ${interaction.user}! ${
+      isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad
+    }`
   );
 }

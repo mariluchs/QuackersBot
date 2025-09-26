@@ -22,7 +22,6 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, g, state) {
   const guildId = interaction.guildId;
 
-  // ✅ Block if somehow state missing in DB (very rare)
   const exists = await hasGuildState(guildId);
   if (!exists) {
     return interaction.reply({
@@ -39,13 +38,11 @@ export async function execute(interaction, g, state) {
   const now = Date.now();
   const delta = g.lastFedAt === 0 ? null : now - g.lastFedAt;
 
-  // --- Fullness logic ---
   let fullness = 'full';
-  if (g.lastFedAt === 0) fullness = 'starving'; // brand new
+  if (g.lastFedAt === 0) fullness = 'starving';
   else if (delta >= g.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
   else if (delta >= 4 * HOUR) fullness = 'starving';
 
-  // --- Next feed text ---
   const nextFeedMs =
     g.lastFedAt === 0 ? 0 : Math.max(0, g.lastFedAt + g.cooldownMs - now);
   const nextFeedText =
@@ -55,13 +52,11 @@ export async function execute(interaction, g, state) {
       ? 'now.'
       : `in ${msToHuman(nextFeedMs)}.`;
 
-  // --- Happiness logic ---
-  const isHappy = g.petsToday >= (g.dailyPetGoal ?? 10);
+  const isHappy = g.petsToday >= g.dailyPetGoal;
   const moodDuck = isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad;
 
   const { att, filename } = getQuackersImage();
 
-  // --- Special first-time message ---
   const firstTime = g.feedCount === 0 && g.lastFedAt === 0;
 
   const embed = {
