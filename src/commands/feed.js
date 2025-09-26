@@ -10,12 +10,12 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, g, state) {
   const guildId = interaction.guildId;
 
-  // ✅ Block if not started
+  // ✅ Block if bot hasn’t been initialized for this guild
   const exists = await hasGuildState(guildId);
   if (!exists) {
     return interaction.reply({
-      content: '⚠️ Quackers has not been started yet in this server. An admin must run `/start` first!',
-      flags: 64,
+      content: '⚠️ Quackers has not been set up yet in this server.',
+      flags: 64, // ephemeral
     });
   }
 
@@ -30,15 +30,29 @@ export async function execute(interaction, g, state) {
     const minutes = Math.ceil(waitMs / 60000);
     return interaction.reply({
       content: `⏳ Quackers isn’t hungry yet. Try again in ${minutes}m.`,
-      flags: 64,
+      flags: 64, // ephemeral
     });
   }
 
+  // ✅ Update state
   g.lastFedAt = now;
   g.feedCount = (g.feedCount ?? 0) + 1;
   g.feeders[interaction.user.id] = (g.feeders[interaction.user.id] || 0) + 1;
 
-  return interaction.reply(
-    `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`
-  );
+  // ✅ Reset reminder flags
+  g.hungryReminded = false;
+  g.starvingReminded = false;
+
+  // ✅ Send confirmation
+  const msg = await interaction.reply({
+    content: `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`,
+    fetchReply: true,
+  });
+
+  // ✅ Add clock reaction to show reminders are armed
+  try {
+    await msg.react('⏰');
+  } catch (err) {
+    console.error('[feed reaction]', err);
+  }
 }

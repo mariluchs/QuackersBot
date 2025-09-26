@@ -113,16 +113,23 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
       for (const [guildId, g] of Object.entries(state)) {
         if (!g?.reminderRoleId || !g?.reminderChannelId) continue;
 
-        g.lastReminderAt ??= 0;
-        g.reminderEveryMs ??= 30 * 60 * 1000;
-        g.cooldownMs ??= 2 * 60 * 60 * 1000;
-        g.lastFedAt ??= now - 3 * 60 * 60 * 1000;
+        g.lastFedAt ??= 0;
+        g.cooldownMs ??= 2 * 60 * 60 * 1000; // 2h default
 
-        const overdue = (now - g.lastFedAt) > g.cooldownMs;
-        const canRemind = (now - g.lastReminderAt) > g.reminderEveryMs;
+        const delta = now - g.lastFedAt;
 
-        if (!overdue || !canRemind) continue;
+        // Decide reminder stage
+        let stage = null;
+        if (delta >= g.cooldownMs && !g.hungryReminded) {
+          stage = 'hungry';
+        }
+        if (delta >= 2 * g.cooldownMs && !g.starvingReminded) {
+          stage = 'starving';
+        }
 
+        if (!stage) continue;
+
+        // Resolve guild + channel
         const guild = client.guilds.cache.get(guildId) ||
           (await client.guilds.fetch(guildId).catch(() => null));
         if (!guild) continue;
@@ -131,13 +138,22 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
           (await guild.channels.fetch(g.reminderChannelId).catch(() => null));
         if (!channel?.isTextBased()) continue;
 
-        const content = `<@&${g.reminderRoleId}> Quackers needs food!`;
+        // --- Custom emojis from utils/emojis.js ---
+        const { EMOJIS } = await import('./utils/emojis.js');
+        let content;
+
+        if (stage === 'hungry') {
+          content = `<@&${g.reminderRoleId}> Quackers is hungry! ${EMOJIS.feed}`;
+          g.hungryReminded = true;
+        } else if (stage === 'starving') {
+          content = `<@&${g.reminderRoleId}> Quackers is STARVING!! ${EMOJIS.mood.sad}`;
+          g.starvingReminded = true;
+        }
+
         await channel.send({
           content,
           allowedMentions: { roles: [g.reminderRoleId] },
         }).catch(() => null);
-
-        g.lastReminderAt = now;
       }
 
       await saveAll(state);
@@ -149,6 +165,7 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
   setInterval(tick, intervalMs);
   setTimeout(tick, 5_000);
 }
+
 
 // --- STARTUP ---
 (async () => {
