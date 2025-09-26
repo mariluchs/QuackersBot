@@ -7,9 +7,11 @@ export const HOUR = 60 * MIN;
 let _client;
 let _db;
 let _col;
+let _colGuildInfo;
 
+// ---- Mongo connection (singleton) ----
 async function connect() {
-  if (_col) return _col;
+  if (_col) return { db: _db, col: _col };
 
   const uri = process.env.MONGO_URI;
   if (!uri) throw new Error('[state] MONGO_URI not set');
@@ -24,16 +26,16 @@ async function connect() {
   _col = _db.collection(colName);
 
   await _col.createIndex({ guildId: 1 }, { unique: true });
-  return _col;
+  return { db: _db, col: _col };
 }
 
-// ✅ Default state for a new guild
+// ---- default per-guild state ----
 export function defaultGuildState() {
   return {
     petName: 'Quackers',
 
     // feeding
-    lastFedAt: 0, // ⬅️ "never fed"
+    lastFedAt: 0, // "never fed"
     cooldownMs: 2 * HOUR,
     feedCount: 0,
     feeders: {},
@@ -54,6 +56,7 @@ export function defaultGuildState() {
   };
 }
 
+// --- helpers for daily reset (UTC) ---
 export function utcDateKey(d = new Date()) {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -62,7 +65,7 @@ export function utcDateKey(d = new Date()) {
 }
 
 export function ensureTodayCounters(g) {
-  if (!g || typeof g !== 'object') return;
+  if (!g || typeof g !== 'object') return; // defensive
   const today = utcDateKey();
 
   if (!('petDayUTC' in g)) g.petDayUTC = today;
@@ -74,8 +77,9 @@ export function ensureTodayCounters(g) {
   }
 }
 
+// ---- DB API ----
 export async function loadAll() {
-  const col = await connect();
+  const { col } = await connect();
   const docs = await col.find({}).toArray();
   const map = {};
   for (const doc of docs) {
@@ -85,7 +89,7 @@ export async function loadAll() {
 }
 
 export async function saveAll(stateMap) {
-  const col = await connect();
+  const { col } = await connect();
   const ops = [];
   for (const [guildId, data] of Object.entries(stateMap || {})) {
     ops.push({
@@ -113,7 +117,7 @@ function sanitizeGuildState(g) {
 }
 
 export async function getGuildState(guildId) {
-  const col = await connect();
+  const { col } = await connect();
   let doc = await col.findOne({ guildId });
 
   if (!doc) {
@@ -132,12 +136,42 @@ export async function getGuildState(guildId) {
 }
 
 export async function hasGuildState(guildId) {
-  const col = await connect();
+  const { col } = await connect();
   const doc = await col.findOne({ guildId });
   return !!doc;
 }
 
 export async function deleteGuildState(guildId) {
-  const col = await connect();
+  const { col } = await connect();
+  await col.deleteOne({ guildId });
+}
+
+// ---- Guild Info Collection ----
+async function connectGuildInfo() {
+  if (_colGuildInfo) return _colGuildInfo;
+  const { db } = await connect();
+  _colGuildInfo = db.collection('guild_info');
+  await _colGuildInfo.createIndex({ guildId: 1 }, { unique: true });
+  return _colGuildInfo;
+}
+
+export async function upsertGuildInfo(guild) {
+  const col = await connectGuildInfo();
+  await col.updateOne(
+    { guildId: guild.id },
+    {
+      $set: {
+        guildId: guild.id,
+        name: guild.name,
+        memberCount: guild.memberCount ?? 0,
+        joinedAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+}
+
+export async function deleteGuildInfo(guildId) {
+  const col = await connectGuildInfo();
   await col.deleteOne({ guildId });
 }

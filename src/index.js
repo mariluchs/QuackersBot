@@ -1,31 +1,58 @@
 // src/index.js
 import 'dotenv/config';
-import { Client, GatewayIntentBits, REST, Routes, Events } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  REST,
+  Routes,
+  Events,
+} from 'discord.js';
 import { allCommands, commandMap } from './commands/index.js';
-import { getGuildState, saveAll, loadAll } from './state.js';
+import {
+  getGuildState,
+  saveAll,
+  defaultGuildState,
+  loadAll,
+  upsertGuildInfo,
+  deleteGuildInfo,
+} from './state.js';
 
-// --- ENV ---
-const token    = process.env.DISCORD_TOKEN;
+const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.APP_ID;
-const guildId  = process.env.GUILD_ID || null;     // optional (dev)
-const nodeEnv  = process.env.NODE_ENV || 'production';
+const guildId = process.env.GUILD_ID || null;
+const nodeEnv = process.env.NODE_ENV || 'production';
 
 if (!token || !clientId) {
   console.error('❌ Missing DISCORD_TOKEN or APP_ID environment variables.');
   process.exit(1);
 }
 
-// --- CLIENT ---
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+client.once(Events.ClientReady, async () => {
+  console.log(`🤖 Logged in as ${client.user.tag}`);
+
+  // ✅ Log all guilds at startup
+  console.log('🌐 Connected guilds:');
+  for (const guild of client.guilds.cache.values()) {
+    console.log(`- ${guild.name} (${guild.id}) with ${guild.memberCount} members`);
+    await upsertGuildInfo(guild); // persist to DB
+  }
 });
 
-client.once(Events.ClientReady, () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
+// --- Guild Join / Leave Logging ---
+client.on(Events.GuildCreate, async guild => {
+  console.log(`➕ Joined new guild: ${guild.name} (${guild.id}) with ${guild.memberCount ?? '??'} members`);
+  await upsertGuildInfo(guild);
+});
+
+client.on(Events.GuildDelete, async guild => {
+  console.log(`➖ Removed from guild: ${guild.name} (${guild.id})`);
+  await deleteGuildInfo(guild.id);
 });
 
 // --- INTERACTIONS ---
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const cmd = commandMap.get(interaction.commandName);
@@ -33,21 +60,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     const { state, g } = await getGuildState(interaction.guildId);
-    let guildState = g;
 
-    // ✅ Require /start before anything else
-    if ((!guildState || typeof guildState !== 'object') && interaction.commandName !== 'start') {
-      return interaction.reply({
-        content: '⚠️ Quackers hasn’t been set up in this server yet. Ask an admin to run `/start`.',
-        flags: 64,
-      });
+    let guildState = g;
+    if (!guildState || typeof guildState !== 'object') {
+      guildState = defaultGuildState();
+      state[interaction.guildId] = guildState;
+      await saveAll(state);
+      console.log(`[state] Recreated missing state for guild ${interaction.guildId}`);
     }
 
     await cmd.execute(interaction, guildState, state);
     await saveAll(state);
   } catch (err) {
     console.error(`[${interaction.commandName}]`, err);
-    const reply = { content: '❌ Oops! Something went wrong.', flags: 64 }; // ✅ updated
+    const reply = { content: '❌ Oops! Something went wrong.', flags: 64 };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(reply).catch(() => {});
     } else {
@@ -60,7 +86,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(token);
   const body = allCommands.map(c =>
-    (typeof c.data?.toJSON === 'function' ? c.data.toJSON() : c.data)
+    typeof c.data?.toJSON === 'function' ? c.data.toJSON() : c.data
   );
 
   try {
@@ -87,26 +113,27 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
       for (const [guildId, g] of Object.entries(state)) {
         if (!g?.reminderRoleId || !g?.reminderChannelId) continue;
 
-        g.lastReminderAt   ??= 0;
-        g.reminderEveryMs  ??= 30 * 60 * 1000; // 30 min default
-        g.cooldownMs       ??= 2 * 60 * 60 * 1000; // 2h default
-        g.lastFedAt        ??= now - 3 * 60 * 60 * 1000;
+        g.lastReminderAt ??= 0;
+        g.reminderEveryMs ??= 30 * 60 * 1000;
+        g.cooldownMs ??= 2 * 60 * 60 * 1000;
+        g.lastFedAt ??= now - 3 * 60 * 60 * 1000;
 
-        const overdue   = (now - g.lastFedAt) > g.cooldownMs;
+        const overdue = (now - g.lastFedAt) > g.cooldownMs;
         const canRemind = (now - g.lastReminderAt) > g.reminderEveryMs;
 
         if (!overdue || !canRemind) continue;
 
-        const guild = client.guilds.cache.get(guildId)
-          || await client.guilds.fetch(guildId).catch(() => null);
+        const guild = client.guilds.cache.get(guildId) ||
+          (await client.guilds.fetch(guildId).catch(() => null));
         if (!guild) continue;
 
-        const channel = guild.channels.cache.get(g.reminderChannelId)
-          || await guild.channels.fetch(g.reminderChannelId).catch(() => null);
+        const channel = guild.channels.cache.get(g.reminderChannelId) ||
+          (await guild.channels.fetch(g.reminderChannelId).catch(() => null));
         if (!channel?.isTextBased()) continue;
 
+        const content = `<@&${g.reminderRoleId}> Quackers needs food!`;
         await channel.send({
-          content: `<@&${g.reminderRoleId}> Quackers needs food!`,
+          content,
           allowedMentions: { roles: [g.reminderRoleId] },
         }).catch(() => null);
 
