@@ -7,6 +7,7 @@ import * as setreminder from './setreminder.js';
 import * as reminderoff from './reminderoff.js';
 import * as help from './help.js';
 import * as start from './start.js';   // ✅ added
+import * as reset from './reset.js';
 
 // test commands (kept separate if you want NODE_ENV split)
 import * as resetfeed from './resetfeed.js';
@@ -23,6 +24,7 @@ export const allCommands = [
   reminderoff,
   help,
   start,         // ✅ included
+  reset, 
   resetfeed,
   resetpet,
   forceremind,

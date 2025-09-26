@@ -4,18 +4,10 @@ import { MongoClient } from 'mongodb';
 export const MIN = 60 * 1000;
 export const HOUR = 60 * MIN;
 
-// ---- Mongo connection (singleton) ----
 let _client;
 let _db;
 let _col;
 
-/**
- * Connect to Mongo once and reuse the collection.
- * Env:
- *  - MONGO_URI (required)
- *  - MONGO_DB  (default: "quackers")
- *  - MONGO_COL (default: "guild_state")
- */
 async function connect() {
   if (_col) return _col;
 
@@ -53,6 +45,7 @@ export function defaultGuildState() {
     // daily counter
     petsToday: 0,
     petDayUTC: utcDateKey(),
+    dailyPetGoal: Math.floor(Math.random() * 16) + 5, // ✅ random 5–20
 
     // reminders
     reminderRoleId: null,
@@ -76,10 +69,13 @@ export function ensureTodayCounters(g) {
 
   if (!('petDayUTC' in g)) g.petDayUTC = today;
   if (!('petsToday' in g)) g.petsToday = 0;
+  if (!('dailyPetGoal' in g)) g.dailyPetGoal = Math.floor(Math.random() * 16) + 5;
 
+  // ✅ Midnight reset logic
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
+    g.dailyPetGoal = Math.floor(Math.random() * 16) + 5; // reroll 5–20 each day
   }
 }
 

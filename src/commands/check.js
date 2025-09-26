@@ -6,7 +6,6 @@ import { defaultGuildState, ensureTodayCounters, HOUR } from '../state.js';
 import { msToHuman } from '../utils/time.js';
 import { EMOJIS } from '../utils/emojis.js';
 
-// __dirname (ESM compatible)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -25,7 +24,6 @@ export async function execute(interaction, g, state) {
     g = defaultGuildState();
     state[interaction.guildId] = g;
   }
-
   g.feeders ??= {};
   g.petStats ??= {};
   ensureTodayCounters(g);
@@ -33,20 +31,15 @@ export async function execute(interaction, g, state) {
   const now = Date.now();
   const delta = now - g.lastFedAt;
 
-  // feeding status
   let fullness = 'full';
-  if (delta >= g.cooldownMs && delta < 4 * HOUR) {
-    fullness = 'hungry';
-  } else if (delta >= 4 * HOUR) {
-    fullness = 'starving';
-  }
+  if (delta >= g.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
+  else if (delta >= 4 * HOUR || g.lastFedAt === 0) fullness = 'starving';
 
   const nextFeedMs = Math.max(0, g.lastFedAt + g.cooldownMs - now);
   const nextFeedText = nextFeedMs === 0 ? 'now.' : `in ${msToHuman(nextFeedMs)}.`;
 
-  // happiness logic: happy only if >= 10 pets today (secret threshold)
-  const happyToday = (g.petsToday ?? 0) >= 10;
-  const moodDuck = happyToday ? EMOJIS.mood.happy : EMOJIS.mood.sad;
+  const isHappy = g.petsToday >= (g.dailyPetGoal ?? 10);
+  const moodDuck = isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad;
 
   const { att, filename } = getQuackersImage();
 
@@ -59,11 +52,13 @@ export async function execute(interaction, g, state) {
         value:
           `Currently **${fullness}** ${EMOJIS.duck}.\n` +
           `Last fed **${msToHuman(delta)}** ago.\n` +
-          `Next feed **${nextFeedText}**`, // ✅ fixed bold closing
+          `Next feed **${nextFeedText}`,
       },
       {
         name: `${EMOJIS.pet} Happiness`,
-        value: `Quackers is feeling **${happyToday ? 'happy' : 'sad'}** today ${moodDuck}.`,
+        value:
+          `Quackers is feeling **${isHappy ? 'happy' : 'sad'}** today ${moodDuck}.\n` +
+          `Pets so far: **${g.petsToday ?? 0}**`,
       },
       {
         name: '📊 Stats',
