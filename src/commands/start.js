@@ -59,8 +59,11 @@ export async function execute(interaction, g, state) {
     components: [row],
   });
 
-  const collector = interaction.channel.createMessageComponentCollector({
-    filter: i => i.customId === 'start-check' && i.user.id === interaction.user.id,
+  // ✅ fetch the reply (needed for collectors to work reliably)
+  const sentMsg = await interaction.fetchReply();
+
+  const collector = sentMsg.createMessageComponentCollector({
+    filter: i => i.customId === 'start-check',
     time: 60_000,
   });
 

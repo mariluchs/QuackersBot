@@ -24,7 +24,7 @@ export async function execute(interaction, g, state) {
     const minutes = Math.ceil(waitMs / 60000);
     return interaction.reply({
       content: `⏳ Quackers isn’t hungry yet. Try again in ${minutes}m.`,
-      flags: 64, // ✅ was ephemeral
+      flags: 64,
     });
   }
 
@@ -32,11 +32,16 @@ export async function execute(interaction, g, state) {
   g.feedCount = (g.feedCount ?? 0) + 1;
   g.feeders[interaction.user.id] = (g.feeders[interaction.user.id] || 0) + 1;
 
-  const msg = await interaction.reply({
-    content: `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`,
-    fetchReply: true,
-  });
+  // ✅ first reply without fetchReply
+  await interaction.reply(
+    `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`
+  );
 
-  // Optionally: react with ⏰ to show reminder is armed
-  await msg.react('⏰').catch(() => null);
+  // ✅ then fetch the sent message and react
+  try {
+    const msg = await interaction.fetchReply();
+    await msg.react('⏰');
+  } catch {
+    // safely ignore if bot lacks perms
+  }
 }
