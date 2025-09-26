@@ -22,11 +22,12 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, g, state) {
   const guildId = interaction.guildId;
 
-  // ✅ Block if not started
+  // ✅ Block if somehow state missing in DB (very rare)
   const exists = await hasGuildState(guildId);
   if (!exists) {
     return interaction.reply({
-      content: '⚠️ Quackers has not been started yet in this server. An admin must run `/start` first!',
+      content:
+        '⚠️ Something went wrong — Quackers is not initialized. Try again or run `/reset` as admin.',
       flags: 64,
     });
   }
@@ -36,29 +37,45 @@ export async function execute(interaction, g, state) {
   ensureTodayCounters(g);
 
   const now = Date.now();
-  const delta = now - g.lastFedAt;
+  const delta = g.lastFedAt === 0 ? null : now - g.lastFedAt;
 
+  // --- Fullness logic ---
   let fullness = 'full';
-  if (delta >= g.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
-  else if (delta >= 4 * HOUR || g.lastFedAt === 0) fullness = 'starving';
+  if (g.lastFedAt === 0) fullness = 'starving'; // brand new
+  else if (delta >= g.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
+  else if (delta >= 4 * HOUR) fullness = 'starving';
 
-  const nextFeedMs = Math.max(0, g.lastFedAt + g.cooldownMs - now);
-  const nextFeedText = nextFeedMs === 0 ? 'now.' : `in ${msToHuman(nextFeedMs)}.`;
+  // --- Next feed text ---
+  const nextFeedMs =
+    g.lastFedAt === 0 ? 0 : Math.max(0, g.lastFedAt + g.cooldownMs - now);
+  const nextFeedText =
+    g.lastFedAt === 0
+      ? 'now.'
+      : nextFeedMs === 0
+      ? 'now.'
+      : `in ${msToHuman(nextFeedMs)}.`;
 
+  // --- Happiness logic ---
   const isHappy = g.petsToday >= (g.dailyPetGoal ?? 10);
   const moodDuck = isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad;
 
   const { att, filename } = getQuackersImage();
 
+  // --- Special first-time message ---
+  const firstTime = g.feedCount === 0 && g.lastFedAt === 0;
+
   const embed = {
     color: 0x2b6cb0,
     title: `Quackers' Status`,
+    description: firstTime
+      ? `🦆 Quackers has just appeared in this server!\nHe is **starving** ${EMOJIS.duck} — better feed him soon ${EMOJIS.feed}`
+      : undefined,
     fields: [
       {
         name: `${EMOJIS.feed} Feeding`,
         value:
           `Currently **${fullness}** ${EMOJIS.duck}.\n` +
-          `Last fed **${msToHuman(delta)}** ago.\n` +
+          `Last fed **${delta === null ? 'never' : msToHuman(delta)}** ago.\n` +
           `Next feed **${nextFeedText}**`,
       },
       {

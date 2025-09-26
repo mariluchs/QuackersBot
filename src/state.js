@@ -27,13 +27,13 @@ async function connect() {
   return _col;
 }
 
-// ---- default per-guild state ----
+// ✅ Default state for a new guild
 export function defaultGuildState() {
   return {
     petName: 'Quackers',
 
     // feeding
-    lastFedAt: Date.now() - 3 * HOUR,
+    lastFedAt: 0, // ⬅️ "never fed"
     cooldownMs: 2 * HOUR,
     feedCount: 0,
     feeders: {},
@@ -45,7 +45,6 @@ export function defaultGuildState() {
     // daily counter
     petsToday: 0,
     petDayUTC: utcDateKey(),
-    dailyPetGoal: Math.floor(Math.random() * 16) + 5, // 5–20
 
     // reminders
     reminderRoleId: null,
@@ -55,7 +54,6 @@ export function defaultGuildState() {
   };
 }
 
-// --- helpers for daily reset (UTC) ---
 export function utcDateKey(d = new Date()) {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -69,16 +67,13 @@ export function ensureTodayCounters(g) {
 
   if (!('petDayUTC' in g)) g.petDayUTC = today;
   if (!('petsToday' in g)) g.petsToday = 0;
-  if (!('dailyPetGoal' in g)) g.dailyPetGoal = Math.floor(Math.random() * 16) + 5;
 
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
-    g.dailyPetGoal = Math.floor(Math.random() * 16) + 5; // reroll daily
   }
 }
 
-// ---- DB API ----
 export async function loadAll() {
   const col = await connect();
   const docs = await col.find({}).toArray();
@@ -113,7 +108,6 @@ function sanitizeGuildState(g) {
   merged.reminderEveryMs ??= 30 * MIN;
   merged.petDayUTC ??= utcDateKey();
   merged.petsToday ??= 0;
-  merged.dailyPetGoal ??= Math.floor(Math.random() * 16) + 5;
 
   return merged;
 }
@@ -137,14 +131,13 @@ export async function getGuildState(guildId) {
   return { state: map, g: map[guildId] };
 }
 
-// ---- Admin helpers ----
-export async function deleteGuildState(guildId) {
-  const col = await connect();
-  await col.deleteOne({ guildId });
-}
-
 export async function hasGuildState(guildId) {
   const col = await connect();
   const doc = await col.findOne({ guildId });
   return !!doc;
+}
+
+export async function deleteGuildState(guildId) {
+  const col = await connect();
+  await col.deleteOne({ guildId });
 }
