@@ -1,4 +1,3 @@
-// src/commands/start.js
 import {
   SlashCommandBuilder,
   PermissionFlagsBits,
@@ -7,7 +6,7 @@ import {
   ButtonStyle,
   AttachmentBuilder,
 } from 'discord.js';
-import { defaultGuildState, saveAll, ensureTodayCounters, HOUR } from '../state.js';
+import { defaultGuildState, saveAll, ensureTodayCounters, HOUR, hasGuildState } from '../state.js';
 import { msToHuman } from '../utils/time.js';
 import { EMOJIS } from '../utils/emojis.js';
 import path from 'path';
@@ -32,10 +31,11 @@ export async function execute(interaction, g, state) {
     return interaction.reply({ content: '❌ Admins only.', flags: 64 });
   }
 
-  // If state exists but looks corrupted → reinit
-  const alreadyValid = g && typeof g.feedCount === 'number';
+  const guildId = interaction.guildId;
 
-  if (alreadyValid) {
+  // ✅ Check directly in DB whether guild already exists
+  const exists = await hasGuildState(guildId);
+  if (exists) {
     return interaction.reply({
       content: '⚠️ Quackers is already set up in this server!',
       flags: 64,
@@ -46,9 +46,9 @@ export async function execute(interaction, g, state) {
   const newState = defaultGuildState();
   newState.feedCount = 0;
   newState.petsToday = 0;
-  newState.lastFedAt = 0; // starving & immediately feedable
+  newState.lastFedAt = 0;
 
-  state[interaction.guildId] = newState;
+  state[guildId] = newState;
   await saveAll(state);
 
   const row = new ActionRowBuilder().addComponents(

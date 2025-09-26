@@ -137,8 +137,14 @@ export async function getGuildState(guildId) {
   return { state: map, g: map[guildId] };
 }
 
-// ---- Admin helper for /reset ----
+// ---- Admin helpers ----
 export async function deleteGuildState(guildId) {
   const col = await connect();
   await col.deleteOne({ guildId });
+}
+
+export async function hasGuildState(guildId) {
+  const col = await connect();
+  const doc = await col.findOne({ guildId });
+  return !!doc;
 }
