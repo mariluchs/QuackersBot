@@ -1,3 +1,4 @@
+// src/commands/start.js
 import {
   SlashCommandBuilder,
   PermissionFlagsBits,
@@ -6,7 +7,13 @@ import {
   ButtonStyle,
   AttachmentBuilder,
 } from 'discord.js';
-import { defaultGuildState, saveAll, ensureTodayCounters, HOUR, hasGuildState } from '../state.js';
+import {
+  defaultGuildState,
+  saveAll,
+  ensureTodayCounters,
+  HOUR,
+  hasGuildState,
+} from '../state.js';
 import { msToHuman } from '../utils/time.js';
 import { EMOJIS } from '../utils/emojis.js';
 import path from 'path';
@@ -42,11 +49,14 @@ export async function execute(interaction, g, state) {
     });
   }
 
+  // Remove any stale in-memory state
+  if (state[guildId]) delete state[guildId];
+
   // Fresh setup
   const newState = defaultGuildState();
   newState.feedCount = 0;
   newState.petsToday = 0;
-  newState.lastFedAt = 0;
+  newState.lastFedAt = 0; // => special case "never"
 
   state[guildId] = newState;
   await saveAll(state);
@@ -74,14 +84,17 @@ export async function execute(interaction, g, state) {
     ensureTodayCounters(newState);
 
     const now = Date.now();
-    const delta = now - newState.lastFedAt;
+    const delta = newState.lastFedAt === 0 ? null : now - newState.lastFedAt;
 
     let fullness = 'full';
-    if (delta >= newState.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
-    else if (delta >= 4 * HOUR || newState.lastFedAt === 0) fullness = 'starving';
+    if (newState.lastFedAt === 0) fullness = 'hungry'; // brand new, unfed
+    else if (delta >= newState.cooldownMs && delta < 4 * HOUR) fullness = 'hungry';
+    else if (delta >= 4 * HOUR) fullness = 'starving';
 
-    const nextFeedMs = Math.max(0, newState.lastFedAt + newState.cooldownMs - now);
-    const nextFeedText = nextFeedMs === 0 ? 'now.' : `in ${msToHuman(nextFeedMs)}.`;
+    const nextFeedMs =
+      newState.lastFedAt === 0 ? 0 : Math.max(0, newState.lastFedAt + newState.cooldownMs - now);
+    const nextFeedText =
+      newState.lastFedAt === 0 ? 'now.' : nextFeedMs === 0 ? 'now.' : `in ${msToHuman(nextFeedMs)}.`;
 
     const isHappy = newState.petsToday >= (newState.dailyPetGoal ?? 10);
     const moodDuck = isHappy ? EMOJIS.mood.happy : EMOJIS.mood.sad;
@@ -96,8 +109,8 @@ export async function execute(interaction, g, state) {
           name: `${EMOJIS.feed} Feeding`,
           value:
             `Currently **${fullness}** ${EMOJIS.duck}.\n` +
-            `Last fed **${msToHuman(delta)}** ago.\n` +
-            `Next feed **${nextFeedText}`,
+            `Last fed **${delta === null ? 'never' : msToHuman(delta)}** ago.\n` +
+            `Next feed **${nextFeedText}**`,
         },
         {
           name: `${EMOJIS.pet} Happiness`,

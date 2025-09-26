@@ -2,7 +2,7 @@
 import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { defaultGuildState, ensureTodayCounters, HOUR } from '../state.js';
+import { ensureTodayCounters, HOUR, hasGuildState } from '../state.js';
 import { msToHuman } from '../utils/time.js';
 import { EMOJIS } from '../utils/emojis.js';
 
@@ -20,10 +20,17 @@ export const data = new SlashCommandBuilder()
   .setDescription("Show Quackers' feeding & happiness.");
 
 export async function execute(interaction, g, state) {
-  if (!g) {
-    g = defaultGuildState();
-    state[interaction.guildId] = g;
+  const guildId = interaction.guildId;
+
+  // ✅ Block if not started
+  const exists = await hasGuildState(guildId);
+  if (!exists) {
+    return interaction.reply({
+      content: '⚠️ Quackers has not been started yet in this server. An admin must run `/start` first!',
+      flags: 64,
+    });
   }
+
   g.feeders ??= {};
   g.petStats ??= {};
   ensureTodayCounters(g);
@@ -52,7 +59,7 @@ export async function execute(interaction, g, state) {
         value:
           `Currently **${fullness}** ${EMOJIS.duck}.\n` +
           `Last fed **${msToHuman(delta)}** ago.\n` +
-          `Next feed **${nextFeedText}`,
+          `Next feed **${nextFeedText}**`,
       },
       {
         name: `${EMOJIS.pet} Happiness`,

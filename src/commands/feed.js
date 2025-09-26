@@ -1,6 +1,6 @@
 // src/commands/feed.js
 import { SlashCommandBuilder } from 'discord.js';
-import { defaultGuildState, ensureTodayCounters } from '../state.js';
+import { ensureTodayCounters, hasGuildState } from '../state.js';
 import { EMOJIS } from '../utils/emojis.js';
 
 export const data = new SlashCommandBuilder()
@@ -8,9 +8,15 @@ export const data = new SlashCommandBuilder()
   .setDescription('Feed Quackers (server-wide cooldown).');
 
 export async function execute(interaction, g, state) {
-  if (!g) {
-    g = defaultGuildState();
-    state[interaction.guildId] = g;
+  const guildId = interaction.guildId;
+
+  // ✅ Block if not started
+  const exists = await hasGuildState(guildId);
+  if (!exists) {
+    return interaction.reply({
+      content: '⚠️ Quackers has not been started yet in this server. An admin must run `/start` first!',
+      flags: 64,
+    });
   }
 
   g.feeders ??= {};
@@ -32,16 +38,7 @@ export async function execute(interaction, g, state) {
   g.feedCount = (g.feedCount ?? 0) + 1;
   g.feeders[interaction.user.id] = (g.feeders[interaction.user.id] || 0) + 1;
 
-  // ✅ first reply without fetchReply
-  await interaction.reply(
+  return interaction.reply(
     `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`
   );
-
-  // ✅ then fetch the sent message and react
-  try {
-    const msg = await interaction.fetchReply();
-    await msg.react('⏰');
-  } catch {
-    // safely ignore if bot lacks perms
-  }
 }
