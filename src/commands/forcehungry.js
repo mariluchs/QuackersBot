@@ -1,8 +1,7 @@
 // src/commands/forcehungry.js
 import { PermissionFlagsBits } from 'discord.js';
-import { saveAll } from '../state.js';
+import { saveAll, HOUR } from '../state.js';
 import { now } from '../utils/time.js';
-import { HOUR } from '../state.js';
 
 export const data = {
   name: 'forcehungry',
@@ -10,12 +9,19 @@ export const data = {
   default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
 };
 
-export async function execute(interaction, { state, g }) {
-  g.lastFedAt = now() - (3 * HOUR); // force hungry state
+export async function execute(interaction, g, state) {
+  if (!g) {
+    return interaction.reply({
+      content: '⚠️ No guild state found. Try feeding Quackers first.',
+      flags: 64,
+    });
+  }
+
+  g.lastFedAt = now() - (3 * HOUR);
   await saveAll(state);
 
   return interaction.reply({
     content: '🧪 Quackers has been set to **hungry** state for testing.',
-    flags: 64, // ✅ was ephemeral
+    flags: 64,
   });
 }

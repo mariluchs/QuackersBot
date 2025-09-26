@@ -8,25 +8,23 @@ export const data = {
   default_member_permissions: PermissionFlagsBits.ManageGuild.toString()
 };
 
-export async function execute(interaction, { state, g }) {
-  // Ensure object exists
-  g.petStats ??= {};
-
-  // Reset only cooldowns, NOT the counts
-  for (const uid of Object.keys(g.petStats)) {
-    const rec = g.petStats[uid] ?? {};
-    rec.lastPetAt = 0;
-    g.petStats[uid] = rec;
+export async function execute(interaction, g, state) {
+  if (!g) {
+    return interaction.reply({
+      content: '⚠️ No guild state found. Try petting Quackers first.',
+      flags: 64,
+    });
   }
 
-  // Optional: do NOT touch g.petsToday if you want daily mood to stay
-  // If you *also* want to reset today's counter, uncomment:
-  // g.petsToday = 0;
+  g.petStats ??= {};
+  for (const uid of Object.keys(g.petStats)) {
+    g.petStats[uid].lastPetAt = 0;
+  }
 
   await saveAll(state);
 
   return interaction.reply({
     content: '🧪 Pet cooldowns have been reset. All-time pet counts were kept.',
-    flags: 64, // ✅ updated
+    flags: 64,
   });
 }

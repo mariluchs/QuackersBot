@@ -7,7 +7,11 @@ import {
   Routes,
   Events,
 } from 'discord.js';
-import { allCommands, commandMap } from './commands/index.js';
+import {
+  globalCommands,
+  guildOnlyCommands,
+  commandMap,
+} from './commands/index.js';
 import {
   getGuildState,
   saveAll,
@@ -29,25 +33,29 @@ if (!token || !clientId) {
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-client.once(Events.ClientReady, async () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
+function timestamp() {
+  return new Date().toISOString();
+}
 
-  // ✅ Log all guilds at startup
-  console.log('🌐 Connected guilds:');
+// --- Ready event ---
+client.once(Events.ClientReady, async () => {
+  console.log(`[${timestamp()}] 🤖 Logged in as ${client.user.tag}`);
+
+  console.log(`[${timestamp()}] 🌐 Connected guilds:`);
   for (const guild of client.guilds.cache.values()) {
     console.log(`- ${guild.name} (${guild.id}) with ${guild.memberCount} members`);
-    await upsertGuildInfo(guild); // persist to DB
+    await upsertGuildInfo(guild);
   }
 });
 
-// --- Guild Join / Leave Logging ---
+// --- Guild join/leave ---
 client.on(Events.GuildCreate, async guild => {
-  console.log(`➕ Joined new guild: ${guild.name} (${guild.id}) with ${guild.memberCount ?? '??'} members`);
+  console.log(`[${timestamp()}] ➕ Joined new guild: ${guild.name} (${guild.id})`);
   await upsertGuildInfo(guild);
 });
 
 client.on(Events.GuildDelete, async guild => {
-  console.log(`➖ Removed from guild: ${guild.name} (${guild.id})`);
+  console.log(`[${timestamp()}] ➖ Removed from guild: ${guild.name} (${guild.id})`);
   await deleteGuildInfo(guild.id);
 });
 
@@ -66,13 +74,13 @@ client.on(Events.InteractionCreate, async interaction => {
       guildState = defaultGuildState();
       state[interaction.guildId] = guildState;
       await saveAll(state);
-      console.log(`[state] Recreated missing state for guild ${interaction.guildId}`);
+      console.log(`[${timestamp()}] [state] Recreated missing state for guild ${interaction.guildId}`);
     }
 
     await cmd.execute(interaction, guildState, state);
     await saveAll(state);
   } catch (err) {
-    console.error(`[${interaction.commandName}]`, err);
+    console.error(`[${timestamp()}] [${interaction.commandName}]`, err);
     const reply = { content: '❌ Oops! Something went wrong.', flags: 64 };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(reply).catch(() => {});
@@ -85,21 +93,41 @@ client.on(Events.InteractionCreate, async interaction => {
 // --- SLASH COMMAND REGISTRATION ---
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(token);
-  const body = allCommands.map(c =>
-    typeof c.data?.toJSON === 'function' ? c.data.toJSON() : c.data
-  );
 
   try {
-    console.log('🔧 Registering slash commands...');
-    await rest.put(Routes.applicationCommands(clientId), { body });
-    console.log('✅ Global slash commands registered.');
+    console.log(`[${timestamp()}] 🔧 Registering slash commands...`);
 
-    if (guildId && nodeEnv === 'development') {
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
-      console.log(`✅ Guild slash commands registered for ${guildId}`);
+    // ✅ Register global commands
+    const globalBody = globalCommands.map(c =>
+      typeof c.data?.toJSON === 'function' ? c.data.toJSON() : c.data
+    );
+    await rest.put(Routes.applicationCommands(clientId), { body: globalBody });
+    console.log(
+      `[${timestamp()}] ✅ Sent ${globalBody.length} global commands to Discord (may take up to 1h to appear).`
+    );
+
+    // ✅ Clean up test commands from global (safety)
+    if (guildOnlyCommands.length > 0) {
+      console.log(`[${timestamp()}] 🧹 Ensuring test commands are not in global scope.`);
+      await rest.put(Routes.applicationCommands(clientId), {
+        body: globalBody,
+      });
+    }
+
+    // ✅ Register guild-only test commands if GUILD_ID is defined
+    if (guildId) {
+      const guildBody = guildOnlyCommands.map(c =>
+        typeof c.data?.toJSON === 'function' ? c.data.toJSON() : c.data
+      );
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body: guildBody,
+      });
+      console.log(
+        `[${timestamp()}] ✅ Sent ${guildBody.length} guild-only test commands to server ${guildId} (active instantly).`
+      );
     }
   } catch (err) {
-    console.error('❌ Failed to register commands:', err);
+    console.error(`[${timestamp()}] ❌ Failed to register commands:`, err);
   }
 }
 
@@ -118,7 +146,6 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
 
         const delta = now - g.lastFedAt;
 
-        // Decide reminder stage
         let stage = null;
         if (delta >= g.cooldownMs && !g.hungryReminded) {
           stage = 'hungry';
@@ -129,7 +156,6 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
 
         if (!stage) continue;
 
-        // Resolve guild + channel
         const guild = client.guilds.cache.get(guildId) ||
           (await client.guilds.fetch(guildId).catch(() => null));
         if (!guild) continue;
@@ -138,7 +164,6 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
           (await guild.channels.fetch(g.reminderChannelId).catch(() => null));
         if (!channel?.isTextBased()) continue;
 
-        // --- Custom emojis from utils/emojis.js ---
         const { EMOJIS } = await import('./utils/emojis.js');
         let content;
 
@@ -158,7 +183,7 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
 
       await saveAll(state);
     } catch (e) {
-      console.error('[reminder loop]', e);
+      console.error(`[${timestamp()}] [reminder loop]`, e);
     }
   }
 
@@ -166,17 +191,16 @@ async function startReminderLoop(client, { intervalMs = 60_000 } = {}) {
   setTimeout(tick, 5_000);
 }
 
-
 // --- STARTUP ---
 (async () => {
   try {
     await loadAll().catch(() => {});
-    console.log('⏳ Logging in…');
+    console.log(`[${timestamp()}] ⏳ Logging in…`);
     await client.login(token);
     registerCommands();
     startReminderLoop(client);
   } catch (err) {
-    console.error('❌ Startup error:', err);
+    console.error(`[${timestamp()}] ❌ Startup error:`, err);
     process.exit(1);
   }
 })();
