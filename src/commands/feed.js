@@ -43,15 +43,15 @@ export async function execute(interaction, g, state) {
   g.hungryReminded = false;
   g.starvingReminded = false;
 
-  // ✅ Send confirmation
-  const msg = await interaction.reply({
+  // ✅ Send confirmation first
+  await interaction.reply({
     content: `${EMOJIS.feed} Quackers has been fed! Thanks, ${interaction.user}! ${EMOJIS.mood.happy}`,
-    fetchReply: true,
   });
 
-  // ✅ Add clock reaction to show reminders are armed
+  // ✅ Then fetch the sent message and react with clock
   try {
-    await msg.react('⏰');
+    const msg = await interaction.fetchReply();
+    await msg.react('⏰'); // clock emoji to show reminders are armed
   } catch (err) {
     console.error('[feed reaction]', err);
   }
