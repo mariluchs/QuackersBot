@@ -45,7 +45,7 @@ export function defaultGuildState() {
     // daily counter
     petsToday: 0,
     petDayUTC: utcDateKey(),
-    dailyPetGoal: Math.floor(Math.random() * 16) + 5, // ✅ random 5–20
+    dailyPetGoal: Math.floor(Math.random() * 16) + 5, // 5–20
 
     // reminders
     reminderRoleId: null,
@@ -71,11 +71,10 @@ export function ensureTodayCounters(g) {
   if (!('petsToday' in g)) g.petsToday = 0;
   if (!('dailyPetGoal' in g)) g.dailyPetGoal = Math.floor(Math.random() * 16) + 5;
 
-  // ✅ Midnight reset logic
   if (g.petDayUTC !== today) {
     g.petDayUTC = today;
     g.petsToday = 0;
-    g.dailyPetGoal = Math.floor(Math.random() * 16) + 5; // reroll 5–20 each day
+    g.dailyPetGoal = Math.floor(Math.random() * 16) + 5; // reroll daily
   }
 }
 
@@ -114,6 +113,7 @@ function sanitizeGuildState(g) {
   merged.reminderEveryMs ??= 30 * MIN;
   merged.petDayUTC ??= utcDateKey();
   merged.petsToday ??= 0;
+  merged.dailyPetGoal ??= Math.floor(Math.random() * 16) + 5;
 
   return merged;
 }
@@ -135,4 +135,10 @@ export async function getGuildState(guildId) {
 
   const map = { [guildId]: upgraded };
   return { state: map, g: map[guildId] };
+}
+
+// ---- Admin helper for /reset ----
+export async function deleteGuildState(guildId) {
+  const col = await connect();
+  await col.deleteOne({ guildId });
 }

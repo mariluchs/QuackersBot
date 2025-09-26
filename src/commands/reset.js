@@ -1,6 +1,6 @@
 // src/commands/reset.js
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { connect } from '../state.js';
+import { deleteGuildState } from '../state.js';
 
 export const data = new SlashCommandBuilder()
   .setName('reset')
@@ -14,9 +14,7 @@ export async function execute(interaction) {
 
   const guildId = interaction.guildId;
   try {
-    const col = await connect();
-    await col.deleteOne({ guildId }); // wipe guild state
-
+    await deleteGuildState(guildId);
     await interaction.reply({
       content: '🧹 Quackers has been fully reset for this server. Run `/start` again to set him up!',
     });

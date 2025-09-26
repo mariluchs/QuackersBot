@@ -6,10 +6,10 @@ import * as leaderboard from './leaderboard.js';
 import * as setreminder from './setreminder.js';
 import * as reminderoff from './reminderoff.js';
 import * as help from './help.js';
-import * as start from './start.js';   // ✅ added
+import * as start from './start.js';
 import * as reset from './reset.js';
 
-// test commands (kept separate if you want NODE_ENV split)
+// test/admin commands
 import * as resetfeed from './resetfeed.js';
 import * as resetpet from './resetpet.js';
 import * as forceremind from './forceremind.js';
@@ -23,8 +23,8 @@ export const allCommands = [
   setreminder,
   reminderoff,
   help,
-  start,         // ✅ included
-  reset, 
+  start,
+  reset,        // ✅ new reset command
   resetfeed,
   resetpet,
   forceremind,
